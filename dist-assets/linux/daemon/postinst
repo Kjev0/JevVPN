@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -eu
+
+chmod u+s "/usr/bin/mullvad-exclude"
+ln -sf /opt/JevVPN/resources/mullvad-problem-report /usr/bin/mullvad-problem-report
+
+systemctl enable "/usr/lib/systemd/system/jevvpn-daemon.service"
+systemctl start jevvpn-daemon.service || echo "Failed to start jevvpn-daemon.service"
+systemctl enable "/usr/lib/systemd/system/jevvpn-early-boot-blocking.service"

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- JevVPN logo: purple disc, white shield, stylised "J" keyhole. Original artwork. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 252 252">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8A4FD6"/>
+      <stop offset="1" stop-color="#3D1A66"/>
+    </linearGradient>
+  </defs>
+  <circle cx="126" cy="126" r="126" fill="url(#bg)"/>
+  <path d="M126 44 L190 68 V122 C190 162 162 194 126 208 C90 194 62 162 62 122 V68 Z"
+        fill="none" stroke="#FFFFFF" stroke-width="14" stroke-linejoin="round"/>
+  <path d="M142 86 V138 C142 154 132 162 120 162 C108 162 100 154 100 142"
+        fill="none" stroke="#FFD524" stroke-width="16" stroke-linecap="round"/>
+</svg>
