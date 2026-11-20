@@ -1,0 +1,114 @@
+---
+# JevVPN CI: checks the parts of the fork that ship (desktop GUI and the Rust service).
+# Replaces Mullvad's upstream workflows, which target their own infrastructure.
+name: JevVPN CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  desktop:
+    name: Desktop app (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Set git config for long paths
+        if: runner.os == 'Windows'
+        run: git config --system core.longpaths true
+
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - uses: ./.github/actions/mullvad-build-env
+        with:
+          cache-rust-targets: "false"
+
+      - name: Install dependencies
+        working-directory: desktop
+        shell: bash
+        run: npm run ci
+
+      - name: Lint
+        if: runner.os == 'Linux'
+        working-directory: desktop
+        shell: bash
+        run: npm run lint
+
+      - name: Build
+        working-directory: desktop
+        shell: bash
+        run: npm run build -w mullvad-vpn
+
+      - name: Build test bundle
+        working-directory: desktop
+        shell: bash
+        run: npm run build:test -w mullvad-vpn
+
+      - name: Unit tests (Linux)
+        if: runner.os == 'Linux'
+        working-directory: desktop
+        run: xvfb-run -a npm test
+
+      - name: Unit tests (Windows)
+        if: runner.os == 'Windows'
+        working-directory: desktop
+        shell: bash
+        run: npm test
+
+      - name: UI tests (Linux)
+        if: runner.os == 'Linux'
+        working-directory: desktop
+        # Sandbox disabled: Ubuntu 24.04 runners lack the userns permissions it needs.
+        run: NO_SANDBOX=1 npm run e2e:no-build -w mullvad-vpn -- --reporter=line
+
+      - name: UI tests (Windows)
+        if: runner.os == 'Windows'
+        working-directory: desktop
+        shell: bash
+        run: npm run e2e:no-build -w mullvad-vpn -- --reporter=line
+
+  service:
+    name: Rust service (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Set git config for long paths
+        if: runner.os == 'Windows'
+        run: git config --system core.longpaths true
+
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - uses: ./.github/actions/mullvad-build-env
+
+      - name: Check service, CLI and tools
+        shell: bash
+        run: >-
+          cargo check --locked
+          -p mullvad-daemon -p mullvad-cli -p mullvad-setup -p mullvad-problem-report
+
+      - name: Service unit tests
+        shell: bash
+        run: cargo test --locked -p mullvad-daemon --lib
+
+      - name: Check firewall and installer plugin (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          cargo check --locked -p talpid-winfw
+          cargo build --locked --release --target i686-pc-windows-msvc -p mullvad-nsis

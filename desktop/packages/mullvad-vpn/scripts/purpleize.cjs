@@ -49,7 +49,13 @@ function transform(text) {
       parseInt(hex.slice(2, 4), 16),
       parseInt(hex.slice(4, 6), 16),
     );
-    return c ? '#' + c.map((v) => v.toString(16).padStart(2, '0')).join('').toUpperCase() : m;
+    return c
+      ? '#' +
+          c
+            .map((v) => v.toString(16).padStart(2, '0'))
+            .join('')
+            .toUpperCase()
+      : m;
   });
   return out;
 }

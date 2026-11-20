@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/images/jevvpn-banner.png" alt="JevVPN"></p>
+<p align="center"><img src="docs/images/jevvpn-banner.webp" alt="JevVPN"></p>
 
 JevVPN is a rebranded fork of the [Mullvad VPN](https://github.com/mullvad/mullvadvpn-app) desktop
 app for Windows and Linux. It keeps Mullvad's Rust background service and Electron GUI, changes the
