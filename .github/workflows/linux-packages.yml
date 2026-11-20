@@ -1,0 +1,47 @@
+---
+# Builds the JevVPN Linux packages (.deb and .rpm) and uploads them to a GitHub release.
+name: Linux packages
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to upload the packages to (e.g. v2026.5-dev-0af83f)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build .deb and .rpm (x86_64)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - uses: ./.github/actions/mullvad-build-env
+
+      - name: Install packaging tools
+        run: sudo apt-get install -y rpm
+
+      - name: Build packages
+        shell: bash
+        run: ./build.sh --optimize
+
+      - name: Upload to release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd dist
+          shopt -s nullglob
+          packages=(*.deb *.rpm)
+          if (( ${#packages[@]} == 0 )); then
+            echo "No packages were produced" >&2
+            exit 1
+          fi
+          for package in "${packages[@]}"; do
+            sha256sum "$package" > "$package.sha256"
+          done
+          gh release upload "${{ inputs.tag }}" "${packages[@]}" ./*.sha256 --clobber \
+            -R "${{ github.repository }}"
