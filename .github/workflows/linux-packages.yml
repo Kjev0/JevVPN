@@ -1,5 +1,6 @@
 ---
-# Builds the JevVPN Linux packages (.deb and .rpm) and uploads them to a GitHub release.
+# Builds the JevVPN Linux packages (.deb, .rpm and the self-extracting .run installer), tests the
+# .run in Arch Linux and Ubuntu containers, and uploads them to a GitHub release.
 name: Linux packages
 on:
   workflow_dispatch:
@@ -13,7 +14,7 @@ permissions:
 
 jobs:
   build:
-    name: Build .deb and .rpm (x86_64)
+    name: Build .deb, .rpm and .run (x86_64)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -28,6 +29,23 @@ jobs:
         shell: bash
         run: ./build.sh --optimize
 
+      - name: Build .run installer
+        shell: bash
+        run: |
+          deb=(dist/*.deb)
+          bash dist-assets/linux/run-installer/make-run-installer.sh "${deb[0]}" \
+            "${deb[0]%_amd64.deb}_x86_64.run"
+
+      - name: Test .run installer (Arch Linux)
+        run: |
+          docker run --rm -v "$PWD:/w" archlinux:latest bash -c \
+            'pacman -Syu --noconfirm && bash /w/dist-assets/linux/run-installer/test-in-container.sh /w/dist/*.run'
+
+      - name: Test .run installer (Ubuntu)
+        run: |
+          docker run --rm -v "$PWD:/w" ubuntu:24.04 bash -c \
+            'apt-get update -qq && apt-get install -y -qq xz-utils libdbus-1-3 && bash /w/dist-assets/linux/run-installer/test-in-container.sh /w/dist/*.run'
+
       - name: Upload to release
         shell: bash
         env:
@@ -35,7 +53,7 @@ jobs:
         run: |
           cd dist
           shopt -s nullglob
-          packages=(*.deb *.rpm)
+          packages=(*.deb *.rpm *.run)
           if (( ${#packages[@]} == 0 )); then
             echo "No packages were produced" >&2
             exit 1

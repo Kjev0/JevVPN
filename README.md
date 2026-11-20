@@ -101,6 +101,20 @@ sudo apt install ./JevVPN-<version>_amd64.deb      # Debian/Ubuntu
 sudo dnf install ./JevVPN-<version>_x86_64.rpm     # Fedora
 ```
 
+#### Arch / any distro (.run)
+
+On Arch Linux and other systemd distributions without dpkg or rpm, use the self-extracting
+installer from the same release:
+
+```bash
+chmod +x JevVPN-<version>_x86_64.run
+sudo ./JevVPN-<version>_x86_64.run           # --help lists --no-start, --no-deps, --uninstall
+sudo /opt/JevVPN/uninstall.sh                # uninstall later
+```
+
+It installs the same files as the `.deb`. On Arch it first installs missing runtime dependencies
+with `pacman` (it prints the list; `--no-deps` skips this). It needs `xz` to unpack.
+
 To build the packages yourself, run the **Linux packages** workflow in GitHub Actions (it builds on
 Ubuntu and uploads to a release), or build on Linux or in WSL2. Step-by-step instructions are
 in [docs/LINUX-BUILD.md](docs/LINUX-BUILD.md). The JevVPN packages cannot be installed alongside
