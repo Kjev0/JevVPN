@@ -1422,7 +1422,9 @@ impl ManagementService for ManagementServiceImpl {
         request: Request<String>,
     ) -> ServiceResult<types::CustomVpnConfigError> {
         log::debug!("import_custom_vpn_config");
-        let body = request.into_inner();
+        let body = resolve_endpoint_hosts(&request.into_inner())
+            .await
+            .map_err(Status::invalid_argument)?;
         let config =
             <talpid_types::net::wireguard::CustomVpnConfig as std::str::FromStr>::from_str(&body)
                 .map_err(|err| Status::invalid_argument(format!("failed to parse config: {err}")))?;
@@ -1510,6 +1512,43 @@ impl ManagementService for ManagementServiceImpl {
             tx_bytes: 0,
         }))
     }
+}
+
+/// Replace hostnames in wg-quick `Endpoint = host:port` lines with a resolved IP, preferring IPv4,
+/// as wg-quick does. Lines that already hold an IP are left untouched.
+#[cfg(feature = "custom-vpn")]
+async fn resolve_endpoint_hosts(config: &str) -> Result<String, String> {
+    let mut out = String::with_capacity(config.len());
+    for line in config.lines() {
+        let endpoint = line
+            .split_once('=')
+            .filter(|(key, _)| key.trim().eq_ignore_ascii_case("Endpoint"))
+            .map(|(_, value)| value.split('#').next().unwrap_or("").trim());
+        let resolved = match endpoint {
+            Some(value) if value.parse::<std::net::SocketAddr>().is_err() => {
+                let (host, port) = value
+                    .rsplit_once(':')
+                    .ok_or_else(|| format!("Invalid Endpoint '{value}' (expected <host>:<port>)"))?;
+                let port: u16 = port
+                    .parse()
+                    .map_err(|_| format!("Invalid port in Endpoint '{value}'"))?;
+                let addrs: Vec<_> = tokio::net::lookup_host((host, port))
+                    .await
+                    .map_err(|err| format!("Could not resolve Endpoint host '{host}': {err}"))?
+                    .collect();
+                let addr = addrs
+                    .iter()
+                    .find(|addr| addr.is_ipv4())
+                    .or(addrs.first())
+                    .ok_or_else(|| format!("Endpoint host '{host}' has no addresses"))?;
+                Some(format!("Endpoint = {addr}"))
+            }
+            _ => None,
+        };
+        out.push_str(resolved.as_deref().unwrap_or(line));
+        out.push('\n');
+    }
+    Ok(out)
 }
 
 impl ManagementServiceImpl {
@@ -1873,5 +1912,28 @@ fn map_version_check_error(error: crate::version::Error) -> Status {
 fn map_protobuf_type_err(err: types::FromProtobufTypeError) -> Status {
     match err {
         types::FromProtobufTypeError::InvalidArgument(err) => Status::invalid_argument(err),
+    }
+}
+
+#[cfg(all(test, feature = "custom-vpn"))]
+mod test {
+    use super::resolve_endpoint_hosts;
+
+    #[tokio::test]
+    async fn resolves_endpoint_hostnames() {
+        let config = "[Peer]\nEndpoint = localhost:51820\n";
+        let resolved = resolve_endpoint_hosts(config).await.unwrap();
+        assert!(resolved.contains("Endpoint = 127.0.0.1:51820"), "{resolved}");
+    }
+
+    #[tokio::test]
+    async fn keeps_ip_endpoints_and_other_lines() {
+        let config = "[Interface]\nAddress = 10.0.0.2/32\n[Peer]\nEndpoint = 1.2.3.4:51820\n";
+        assert_eq!(resolve_endpoint_hosts(config).await.unwrap(), config);
+    }
+
+    #[tokio::test]
+    async fn rejects_endpoint_without_port() {
+        assert!(resolve_endpoint_hosts("Endpoint = example").await.is_err());
     }
 }
