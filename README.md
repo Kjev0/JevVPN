@@ -93,7 +93,16 @@ toolchain notes.
 
 ### Linux
 
-Build the `.deb` / `.rpm` packages on Linux, or on Windows in WSL2. Step-by-step instructions are
+Download the `.deb` (Debian/Ubuntu) or `.rpm` (Fedora) package from the
+[Releases](https://github.com/Kjev0/JevVPN/releases) page and install it:
+
+```bash
+sudo apt install ./JevVPN-<version>_amd64.deb      # Debian/Ubuntu
+sudo dnf install ./JevVPN-<version>_x86_64.rpm     # Fedora
+```
+
+To build the packages yourself, run the **Linux packages** workflow in GitHub Actions (it builds on
+Ubuntu and uploads to a release), or build on Linux or in WSL2. Step-by-step instructions are
 in [docs/LINUX-BUILD.md](docs/LINUX-BUILD.md). The JevVPN packages cannot be installed alongside
 the official Mullvad VPN Linux package, because the binaries under `/usr/bin` have the same names.
 
@@ -124,7 +133,7 @@ Other checks: `npm run test` (unit tests), `npm run lint`, `npm run type-check`.
   OpenVPN support, so activating one shows an error.
 - Builds are not code-signed.
 - The background service still asks Mullvad's version API for the latest release. JevVPN ignores the answer and in-app upgrades are turned off.
-- The Linux packages have not been built or tested yet.
+- The Linux packages are built in CI but have not yet been tested on a real Linux machine.
 - At the time of writing, the Windows installer has not been run on real hardware.
 
 ## Upstream
