@@ -26,6 +26,7 @@ import {
   StyledMessage,
   StyledTitle,
 } from '../../ExpiredAccountErrorViewStyles';
+import { GuestSkipButton } from '../../GuestSkipButton';
 import { SettingsListItem } from '../../settings-list-item';
 import { StatusDialog } from '../../status-dialog';
 
@@ -103,6 +104,8 @@ function ExpiredAccountErrorViewComponent() {
                   }
                 </Button.Text>
               </Button>
+
+              <GuestSkipButton />
             </FlexColumn>
 
             <LockdownModeAlert />

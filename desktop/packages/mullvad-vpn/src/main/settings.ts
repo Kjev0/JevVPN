@@ -12,6 +12,7 @@ import { IpcMainEventChannel } from './ipc-event-channel';
 export interface SettingsDelegate {
   handleMonochromaticIconChange(value: boolean): void;
   handleUnpinnedWindowChange(): void;
+  handleGuestModeChange(): void;
 }
 
 export default class Settings implements Readonly<ISettings> {
@@ -125,6 +126,10 @@ export default class Settings implements Readonly<ISettings> {
       this.guiSettings.animateMap = animateMap;
     });
 
+    IpcMainEventChannel.guiSettings.handleSetGuestMode((guestMode: boolean) => {
+      this.guiSettings.guestMode = guestMode;
+    });
+
     IpcMainEventChannel.currentVersion.handleDisplayedChangelog(() => {
       this.guiSettings.changelogDisplayedForVersion = this.currentVersion.gui;
     });
@@ -201,6 +206,11 @@ export default class Settings implements Readonly<ISettings> {
 
       if (newState.autoConnect !== oldState.autoConnect) {
         this.updateDaemonsAutoConnect();
+      }
+
+      // The tray's Connect item depends on guest mode.
+      if (newState.guestMode !== oldState.guestMode) {
+        this.delegate.handleGuestModeChange();
       }
 
       IpcMainEventChannel.guiSettings.notify?.(newState);

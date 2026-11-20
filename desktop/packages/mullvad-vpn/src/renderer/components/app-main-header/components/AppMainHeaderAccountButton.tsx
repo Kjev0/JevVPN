@@ -15,14 +15,21 @@ export const AppMainHeaderBarAccountButton = (props: MainHeaderBarAccountButtonP
     [history],
   );
 
+  // Guests have no account page, so the button leads to the login view instead.
+  const openLogin = useCallback(
+    () => history.push(RoutePath.login, { transition: TransitionType.show }),
+    [history],
+  );
+
   const loggedIn = useSelector((state) => state.account.status.type === 'ok');
-  if (!loggedIn) {
+  const guestMode = useSelector((state) => state.settings.guiSettings.guestMode);
+  if (!loggedIn && !guestMode) {
     return null;
   }
 
   return (
     <MainHeader.IconButton
-      onClick={openAccount}
+      onClick={loggedIn ? openAccount : openLogin}
       data-testid="account-button"
       aria-label={messages.gettext('Account settings')}
       {...props}>

@@ -18,6 +18,7 @@ const settingsSchema: Record<keyof IGuiSettingsState, string> = {
   settingsMigrationNotificationDismissedForVersion: 'string',
   completedSettingsMigrations: 'Array<string>',
   animateMap: 'boolean',
+  guestMode: 'boolean',
 };
 
 const defaultSettings: IGuiSettingsState = {
@@ -33,6 +34,7 @@ const defaultSettings: IGuiSettingsState = {
   settingsMigrationNotificationDismissedForVersion: '',
   completedSettingsMigrations: [],
   animateMap: true,
+  guestMode: false,
 };
 
 export default class GuiSettings {
@@ -171,6 +173,14 @@ export default class GuiSettings {
 
   get animateMap(): boolean {
     return this.stateValue.animateMap;
+  }
+
+  set guestMode(newValue: boolean) {
+    this.changeStateAndNotify({ ...this.stateValue, guestMode: newValue });
+  }
+
+  get guestMode(): boolean {
+    return this.stateValue.guestMode;
   }
 
   public load() {

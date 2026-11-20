@@ -37,6 +37,67 @@ pub enum Error {
 
     #[error("Failed to get device data")]
     Device(#[from] DeviceError),
+
+    #[error("Custom VPN config has no IPv4 interface address")]
+    CustomVpnNoIpv4,
+}
+
+/// Tunnel parameters that connect directly to a custom VPN server, without a Mullvad relay.
+/// Like upstream custom tunnel endpoints, the peer endpoint is what the firewall allows.
+#[cfg(feature = "custom-vpn")]
+fn custom_vpn_tunnel_parameters(
+    config: &wireguard::CustomVpnConfig,
+    tunnel_options: TunnelOptions,
+) -> Result<TunnelParameters, Error> {
+    let ipv4 = config
+        .tunnel
+        .ips
+        .iter()
+        .find_map(|ip| match ip {
+            IpAddr::V4(ip) => Some(*ip),
+            IpAddr::V6(_) => None,
+        })
+        .ok_or(Error::CustomVpnNoIpv4)?;
+    // shortcut: imported configs carry no gateway, so assume x.y.z.1 (wg-easy, PiVPN, Proton,
+    // Mullvad all use it). It is the default DNS and ping target; set custom DNS if it differs.
+    let [a, b, c, _] = ipv4.octets();
+    let ipv4_gateway = Ipv4Addr::new(a, b, c, 1);
+
+    let peer = config.peers.first();
+    if config.peers.len() > 1 {
+        log::warn!("Custom VPN has several peers; standalone mode only uses the first");
+    }
+
+    let mut options = tunnel_options.wireguard.into_talpid_tunnel_options();
+    // Quantum resistance and DAITA need a Mullvad relay.
+    options.quantum_resistant = false;
+    options.daita = false;
+
+    Ok(wireguard::TunnelParameters {
+        connection: wireguard::ConnectionConfig {
+            tunnel: wireguard::TunnelConfig {
+                private_key: config.tunnel.private_key.clone(),
+                addresses: config.tunnel.ips.clone(),
+            },
+            peer: wireguard::PeerConfig {
+                public_key: peer.public_key.clone(),
+                allowed_ips: peer.allowed_ip.clone(),
+                endpoint: peer.endpoint,
+                psk: None,
+                constant_packet_size: false,
+            },
+            exit_peer: None,
+            ipv4_gateway,
+            ipv6_gateway: None,
+            routes: None,
+            #[cfg(target_os = "linux")]
+            fwmark: Some(mullvad_types::TUNNEL_FWMARK),
+        },
+        options,
+        generic_options: tunnel_options.generic,
+        obfuscation: None,
+        custom_vpn: None,
+    })
 }
 
 #[derive(Clone)]
@@ -49,6 +110,9 @@ struct InnerParametersGenerator {
     account_manager: AccountManagerHandle,
     #[cfg(feature = "custom-vpn")]
     custom_vpn: Option<talpid_types::net::wireguard::CustomVpnConfig>,
+    /// Last known account expiry state. With an expired account, the custom VPN is used standalone.
+    #[cfg(feature = "custom-vpn")]
+    account_expired: bool,
 
     last_generated_relays: Option<LastSelectedRelays>,
 }
@@ -71,6 +135,8 @@ impl ParametersGenerator {
             account_manager,
             #[cfg(feature = "custom-vpn")]
             custom_vpn,
+            #[cfg(feature = "custom-vpn")]
+            account_expired: false,
             last_generated_relays: None,
         })))
     }
@@ -96,6 +162,13 @@ impl ParametersGenerator {
         config: Option<talpid_types::net::wireguard::CustomVpnConfig>,
     ) {
         self.0.lock().await.custom_vpn = config;
+    }
+
+    /// Records whether the account is out of time. Returns whether the value changed.
+    #[cfg(feature = "custom-vpn")]
+    pub async fn set_account_expired(&self, expired: bool) -> bool {
+        let mut inner = self.0.lock().await;
+        std::mem::replace(&mut inner.account_expired, expired) != expired
     }
 
     pub async fn last_relay_was_overridden(&self) -> bool {
@@ -214,7 +287,19 @@ impl InnerParametersGenerator {
                 });
         }
 
-        let data = self.device().await?;
+        let device = self.device().await;
+
+        // Guest mode: without a usable Mullvad account, connect straight to the user's own
+        // WireGuard server. Mullvad relays are never used on this path.
+        #[cfg(feature = "custom-vpn")]
+        if let Some(config) = self.custom_vpn.as_ref()
+            && (self.account_expired || device.is_err())
+        {
+            self.last_generated_relays = None;
+            return custom_vpn_tunnel_parameters(config, self.tunnel_options.clone());
+        }
+
+        let data = device?;
 
         self.relay_selector.set_ip_availability(ip_availability);
         if retry_attempt == 0 {
@@ -339,7 +424,10 @@ impl From<Error> for ParameterGenerationError {
             Error::SelectRelay(mullvad_relay_selector::Error::NoRelayExit(_)) => {
                 ParameterGenerationError::NoMatchingRelayExit
             }
-            Error::NoAuthDetails | Error::SelectRelay(_) | Error::Device(_) => {
+            Error::NoAuthDetails
+            | Error::SelectRelay(_)
+            | Error::Device(_)
+            | Error::CustomVpnNoIpv4 => {
                 ParameterGenerationError::NoMatchingRelay
             }
         }
@@ -382,6 +470,39 @@ mod test {
         for ip in ["1.2.3.4", "2606:4700::1111"] {
             assert!(covers(&result, ip), "{ip} must remain reachable in tunnel");
         }
+    }
+
+    /// Standalone custom VPN params connect straight to the user's peer, with no Mullvad parts.
+    #[cfg(feature = "custom-vpn")]
+    #[test]
+    fn test_custom_vpn_standalone_parameters() {
+        let config = wireguard::CustomVpnConfig {
+            enabled: true,
+            name: None,
+            tunnel: wireguard::CustomVpnTunnelConfig {
+                private_key: wireguard::PrivateKey::new_from_random(),
+                ips: vec!["10.8.0.2".parse().unwrap(), "fd00::2".parse().unwrap()],
+            },
+            peers: vec1::vec1![wireguard::CustomVpnPeerConfig {
+                public_key: wireguard::PrivateKey::new_from_random().public_key(),
+                allowed_ip: allowed_ips(&["0.0.0.0/0", "::/0"]),
+                endpoint: "203.0.113.7:51820".parse().unwrap(),
+            }],
+        };
+        let mut options = TunnelOptions::default();
+        options.wireguard.quantum_resistant = mullvad_types::wireguard::QuantumResistantState::On;
+
+        let params = custom_vpn_tunnel_parameters(&config, options).unwrap();
+
+        assert_eq!(
+            params.get_next_hop_endpoints()[0].address,
+            "203.0.113.7:51820".parse().unwrap()
+        );
+        assert_eq!(params.connection.ipv4_gateway, Ipv4Addr::new(10, 8, 0, 1));
+        assert!(params.connection.exit_peer.is_none());
+        assert!(params.custom_vpn.is_none());
+        assert!(!params.options.quantum_resistant);
+        assert!(params.obfuscation.is_none());
     }
 
     /// Test legit private IPs in Mullvad tunnels.

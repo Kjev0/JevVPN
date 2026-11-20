@@ -1,7 +1,11 @@
 import { RoutePath } from '../../../shared/routes';
 import { LoginState } from '../../redux/account/reducers';
 
-export function getNavigationBase(connectedToDaemon: boolean, loginState: LoginState): RoutePath {
+export function getNavigationBase(
+  connectedToDaemon: boolean,
+  loginState: LoginState,
+  guestMode = false,
+): RoutePath {
   if (connectedToDaemon) {
     if (loginState.type === 'none' && loginState.deviceRevoked) {
       return RoutePath.deviceRevoked;
@@ -10,6 +14,13 @@ export function getNavigationBase(connectedToDaemon: boolean, loginState: LoginS
       (loginState.type === 'failed' && loginState.error === 'too-many-devices')
     ) {
       return RoutePath.tooManyDevices;
+    } else if (
+      guestMode &&
+      (loginState.type === 'none' ||
+        (loginState.type === 'ok' && loginState.expiredState === 'expired'))
+    ) {
+      // Guest mode: no account (or an expired one) doesn't block the main view.
+      return RoutePath.main;
     } else if (
       loginState.type === 'none' ||
       loginState.type === 'logging in' ||

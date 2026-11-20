@@ -1,7 +1,8 @@
 import { useCallback, useEffect } from 'react';
 import styled from 'styled-components';
 
-import { IconButton } from '../../../../../lib/components';
+import { messages } from '../../../../../../shared/gettext';
+import { IconButton, LabelTinySemiBold } from '../../../../../lib/components';
 import { colors, durations } from '../../../../../lib/foundations';
 import { useBoolean } from '../../../../../lib/utility-hooks';
 import { useSelector } from '../../../../../redux/store';
@@ -73,6 +74,7 @@ const StyledConnectionStatusContainer = styled.div<{
 export function ConnectionPanel() {
   const [expanded, expandImpl, collapse, toggleExpandedImpl] = useBoolean();
   const tunnelState = useSelector((state) => state.connection.status);
+  const guestMode = useSelector((state) => state.settings.guiSettings.guestMode);
 
   const allowExpand = tunnelState.state === 'connected' || tunnelState.state === 'connecting';
 
@@ -122,6 +124,17 @@ export function ConnectionPanel() {
         <StyledConnectionButtonContainer>
           <SelectLocationButtons />
           <ConnectionActionButton />
+          {guestMode && (
+            <LabelTinySemiBold color="whiteAlpha60" data-testid="guest-mode-hint">
+              {
+                // TRANSLATORS: Shown under the connect button when using the app without an account.
+                messages.pgettext(
+                  'connect-view',
+                  'Guest mode: import a WireGuard config to connect. Mullvad servers require a Mullvad account.',
+                )
+              }
+            </LabelTinySemiBold>
+          )}
         </StyledConnectionButtonContainer>
       </StyledConnectionPanel>
     </BackAction>

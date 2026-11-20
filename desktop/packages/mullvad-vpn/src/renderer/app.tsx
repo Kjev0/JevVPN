@@ -380,8 +380,12 @@ export default class AppRenderer {
       initialState.navigationHistory.lastAction = 'POP';
       this.history = History.fromSavedHistory(initialState.navigationHistory);
     } else {
-      const loginState = this.reduxStore.getState().account.status;
-      const navigationBase = getNavigationBase(this.connectedToDaemon, loginState);
+      const state = this.reduxStore.getState();
+      const navigationBase = getNavigationBase(
+        this.connectedToDaemon,
+        state.account.status,
+        state.settings.guiSettings.guestMode,
+      );
       this.history = new History(navigationBase);
     }
 
@@ -501,6 +505,14 @@ export default class AppRenderer {
   public getMapData = () => IpcRendererEventChannel.map.getData();
   public setAnimateMap = (displayMap: boolean): void =>
     IpcRendererEventChannel.guiSettings.setAnimateMap(displayMap);
+  public setGuestMode = (guestMode: boolean): void => {
+    // Update redux right away so navigation never acts on a stale value (e.g. guest main after logout).
+    this.reduxActions.settings.updateGuiSettings({
+      ...this.reduxStore.getState().settings.guiSettings,
+      guestMode,
+    });
+    IpcRendererEventChannel.guiSettings.setGuestMode(guestMode);
+  };
   public daemonPrepareRestart = (shutdown: boolean): void => {
     IpcRendererEventChannel.daemon.prepareRestart(shutdown);
   };
@@ -1010,10 +1022,21 @@ export default class AppRenderer {
             reduxAccount.accountCreated(accountNumber, device, new Date().toISOString());
             break;
         }
+        // A successful login or account creation ends guest mode.
+        if (
+          this.loginState !== 'none' &&
+          this.reduxStore.getState().settings.guiSettings.guestMode
+        ) {
+          this.setGuestMode(false);
+        }
         break;
       }
       case 'logged out':
         this.loginScheduler.cancel();
+        // Clear guest mode first so logging out lands on the login view, not the guest main view.
+        if (this.reduxStore.getState().settings.guiSettings.guestMode) {
+          this.setGuestMode(false);
+        }
         reduxAccount.loggedOut();
         break;
       case 'revoked': {
@@ -1092,6 +1115,14 @@ export default class AppRenderer {
 
   private handleExpiry(expiry?: string) {
     this.reduxActions.account.updateAccountExpiry(expiry);
+    // Time was added to the account, so guest mode is no longer needed.
+    if (
+      expiry !== undefined &&
+      !hasExpired(expiry) &&
+      this.reduxStore.getState().settings.guiSettings.guestMode
+    ) {
+      this.setGuestMode(false);
+    }
   }
 
   private storeAutoStart(autoStart: boolean) {

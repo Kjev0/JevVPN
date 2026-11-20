@@ -45,6 +45,7 @@ clap_complete_nushell = "4.6.2"
 nix = { workspace = true, features = ["signal"] }
 
 [features]
+default = ["custom-vpn"]
 custom-vpn = [
   "mullvad-management-interface/custom-vpn",
   "mullvad-types/custom-vpn",

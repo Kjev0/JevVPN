@@ -37,6 +37,7 @@ class ApplicationMain {
     settingsMigrationNotificationDismissedForVersion: '',
     completedSettingsMigrations: [],
     animateMap: true,
+    guestMode: false,
   };
 
   private settings = getDefaultSettings();
@@ -173,6 +174,11 @@ class ApplicationMain {
     IpcMainEventChannel.relays.handlePartitionRelays(async (predicate) => {
       const relayPartitions = getRelayPartitions(predicate, mockData.relayList);
       return Promise.resolve(relayPartitions);
+    });
+
+    IpcMainEventChannel.guiSettings.handleSetGuestMode((guestMode) => {
+      this.guiSettings.guestMode = guestMode;
+      IpcMainEventChannel.guiSettings.notify?.(this.guiSettings);
     });
 
     IpcMainEventChannel.guiSettings.handleSetPreferredLocale((locale) => {

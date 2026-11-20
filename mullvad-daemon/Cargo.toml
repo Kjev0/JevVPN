@@ -178,7 +178,7 @@ features = [
 ]
 
 [features]
-default = ["default-allocator"]
+default = ["default-allocator", "custom-vpn"]
 # Allow the API server to use to be configured
 api-override = ["mullvad-api/api-override"]
 cgroup2 = ["talpid-core/cgroup2"]

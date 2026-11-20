@@ -129,6 +129,7 @@ const initialState: ISettingsReduxState = {
     settingsMigrationNotificationDismissedForVersion: '',
     completedSettingsMigrations: [],
     animateMap: true,
+    guestMode: false,
   },
   relaySettings: {
     normal: {

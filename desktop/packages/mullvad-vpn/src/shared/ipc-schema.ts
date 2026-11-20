@@ -237,6 +237,7 @@ export const ipcSchema = {
     setPreferredLocale: invoke<string, ITranslations>(),
     setUnpinnedWindow: send<boolean>(),
     setAnimateMap: send<boolean>(),
+    setGuestMode: send<boolean>(),
     dismissedSettingsMigrationNotification: send<void>(),
     completedSettingsMigration: send<string>(),
   },

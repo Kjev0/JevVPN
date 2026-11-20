@@ -34,6 +34,7 @@ test.describe('User interface settings', () => {
       updateDismissedForVersion: '',
       settingsMigrationNotificationDismissedForVersion: '',
       completedSettingsMigrations: [],
+      guestMode: false,
     };
 
     await util.ipc.guiSettings[''].notify({

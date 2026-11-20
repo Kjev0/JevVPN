@@ -47,4 +47,7 @@ export interface IGuiSettingsState {
 
   // Tells the app whether or not to show the map in the main view.
   animateMap: boolean;
+
+  // Lets the user use the app without an account, e.g. with imported WireGuard configs.
+  guestMode: boolean;
 }

@@ -12,13 +12,14 @@ export default function StateTriggeredNavigation() {
 
   const connectedToDaemon = useSelector((state) => state.userInterface.connectedToDaemon);
   const loginState = useSelector((state) => state.account.status);
+  const guestMode = useSelector((state) => state.settings.guiSettings.guestMode);
 
   const delayScheduler = useScheduler();
 
-  const prevPath = useRef<RoutePath>(getNavigationBase(connectedToDaemon, loginState));
+  const prevPath = useRef<RoutePath>(getNavigationBase(connectedToDaemon, loginState, guestMode));
   const nextPath = useMemo(
-    () => getNavigationBase(connectedToDaemon, loginState),
-    [connectedToDaemon, loginState],
+    () => getNavigationBase(connectedToDaemon, loginState, guestMode),
+    [connectedToDaemon, loginState, guestMode],
   );
 
   const updatePath = useEffectEvent((nextPath: RoutePath) => {

@@ -253,14 +253,14 @@ class ApplicationMain
   }
 
   public connectTunnel = async (): Promise<void> => {
-    if (this.tunnelState.allowConnect(this.daemonRpc.isConnected, this.account.isLoggedIn())) {
+    if (this.tunnelState.allowConnect(this.daemonRpc.isConnected, this.connectAllowed())) {
       this.tunnelState.expectNextTunnelState('connecting');
       await this.daemonRpc.connectTunnel();
     }
   };
 
   public reconnectTunnel = async (): Promise<void> => {
-    if (this.tunnelState.allowReconnect(this.daemonRpc.isConnected, this.account.isLoggedIn())) {
+    if (this.tunnelState.allowReconnect(this.daemonRpc.isConnected, this.connectAllowed())) {
       this.tunnelState.expectNextTunnelState('connecting');
       await this.daemonRpc.reconnectTunnel();
     }
@@ -273,7 +273,11 @@ class ApplicationMain
     }
   };
 
-  public isLoggedIn = () => this.account.isLoggedIn();
+  // Used by the tray menu to enable Connect/Reconnect.
+  public isLoggedIn = () => this.connectAllowed();
+
+  // Guests may connect too; the daemon stays the authority and errors without an active custom config.
+  public connectAllowed = () => this.account.isLoggedIn() || this.settings.gui.guestMode;
 
   public disconnectAndQuit = async (source: DisconnectSource) => {
     if (this.daemonRpc.isConnected) {
@@ -471,7 +475,7 @@ class ApplicationMain
       );
       await this.userInterface?.updateTrayTheme();
 
-      this.userInterface?.updateTray(this.account.isLoggedIn(), this.tunnelState.tunnelState);
+      this.userInterface?.updateTray(this.connectAllowed(), this.tunnelState.tunnelState);
 
       if (process.platform === 'win32') {
         nativeTheme.on('updated', async () => {
@@ -502,10 +506,7 @@ class ApplicationMain
       }
     }
 
-    await this.userInterface.initializeWindow(
-      this.account.isLoggedIn(),
-      this.tunnelState.tunnelState,
-    );
+    await this.userInterface.initializeWindow(this.connectAllowed(), this.tunnelState.tunnelState);
   };
 
   private loadSplitTunneling = async () => {
@@ -853,7 +854,7 @@ class ApplicationMain
     const oldSettings = this.settings;
     this.settings.handleNewSettings(newSettings);
 
-    this.userInterface?.updateTray(this.account.isLoggedIn(), this.tunnelState.tunnelState);
+    this.userInterface?.updateTray(this.connectAllowed(), this.tunnelState.tunnelState);
 
     if (oldSettings.showBetaReleases !== newSettings.showBetaReleases) {
       this.version.setLatestVersion(this.version.upgradeVersion);
@@ -1084,7 +1085,7 @@ class ApplicationMain
       relayLocations: relayLocationsTranslations,
     };
 
-    this.userInterface?.updateTray(this.account.isLoggedIn(), this.tunnelState.tunnelState);
+    this.userInterface?.updateTray(this.connectAllowed(), this.tunnelState.tunnelState);
   }
 
   private blockPermissionRequests() {
@@ -1267,7 +1268,7 @@ class ApplicationMain
 
   // TunnelStateHandlerDelegate
   public handleTunnelStateUpdate = (tunnelState: TunnelState) => {
-    this.userInterface?.updateTray(this.account.isLoggedIn(), tunnelState);
+    this.userInterface?.updateTray(this.connectAllowed(), tunnelState);
 
     this.notificationController.notifyTunnelState(
       tunnelState,
@@ -1288,16 +1289,15 @@ class ApplicationMain
   public handleMonochromaticIconChange = (value: boolean) =>
     this.userInterface?.setMonochromaticIcon(value) ?? Promise.resolve();
   public handleUnpinnedWindowChange = () =>
-    void this.userInterface?.recreateWindow(
-      this.account.isLoggedIn(),
-      this.tunnelState.tunnelState,
-    );
+    void this.userInterface?.recreateWindow(this.connectAllowed(), this.tunnelState.tunnelState);
+  public handleGuestModeChange = () =>
+    this.userInterface?.updateTray(this.connectAllowed(), this.tunnelState.tunnelState);
 
   // AccountDelegate
   public getLocale = () => this.locale;
   public getTunnelState = () => this.tunnelState.tunnelState;
   public onDeviceEvent = () => {
-    this.userInterface?.updateTray(this.account.isLoggedIn(), this.tunnelState.tunnelState);
+    this.userInterface?.updateTray(this.connectAllowed(), this.tunnelState.tunnelState);
 
     if (this.isPerformingPostUpgrade) {
       void this.performPostUpgradeCheck();

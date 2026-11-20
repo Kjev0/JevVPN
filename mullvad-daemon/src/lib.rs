@@ -1718,6 +1718,31 @@ impl Daemon {
     }
 
     async fn handle_device_event(&mut self, event: AccountEvent) {
+        // Guest mode: with an enabled custom VPN, an expired account switches to the standalone
+        // custom VPN tunnel instead of blocking. Mullvad relays stay unavailable.
+        #[cfg(feature = "custom-vpn")]
+        if let AccountEvent::Expiry(expiry) = &event {
+            let expired = *expiry < chrono::Utc::now();
+            let changed = self.parameters_generator.set_account_expired(expired).await;
+            if self.custom_vpn.active() && (expired || changed) {
+                if changed {
+                    self.reconnect_tunnel();
+                }
+                return;
+            }
+        }
+        // A new or removed account invalidates the cached expiry; the next Expiry event sets it.
+        #[cfg(feature = "custom-vpn")]
+        if matches!(
+            event,
+            AccountEvent::Device(
+                PrivateDeviceEvent::Login(_)
+                    | PrivateDeviceEvent::Logout
+                    | PrivateDeviceEvent::Revoked
+            )
+        ) {
+            self.parameters_generator.set_account_expired(false).await;
+        }
         match &event {
             AccountEvent::Device(PrivateDeviceEvent::Login(device)) => {
                 if let Err(error) = self

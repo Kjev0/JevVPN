@@ -1252,6 +1252,11 @@ msgctxt "connect-view"
 msgid "Go ahead and start using the app to begin reclaiming your online privacy."
 msgstr ""
 
+#. Shown under the connect button when using the app without an account.
+msgctxt "connect-view"
+msgid "Guest mode: import a WireGuard config to connect. Mullvad servers require a Mullvad account."
+msgstr ""
+
 msgctxt "connect-view"
 msgid "Here’s your account number. Save it!"
 msgstr ""
@@ -2047,6 +2052,11 @@ msgctxt "login-view"
 msgid "Removing the saved account number from this device cannot be undone."
 msgstr ""
 
+#. Button that lets the user use the app without logging in.
+msgctxt "login-view"
+msgid "Skip"
+msgstr ""
+
 #. Error message shown above login input when trying to login to an account
 #. with too many registered devices.
 msgctxt "login-view"
@@ -2535,6 +2545,10 @@ msgctxt "select-location-view"
 msgid "Exit"
 msgstr ""
 
+msgctxt "select-location-view"
+msgid "Import a config"
+msgstr ""
+
 #. Title for a menu with items for the Multihop mode setting options.
 msgctxt "select-location-view"
 msgid "Multihop mode"
@@ -2624,6 +2638,10 @@ msgstr ""
 #. will override the entry filters the user has selected.
 msgctxt "select-location-view"
 msgid "You currently have entry filters applied. Selecting the “Automatic” location, the app will ignore filter settings for the entry server."
+msgstr ""
+
+msgctxt "select-location-view"
+msgid "Your configs"
 msgstr ""
 
 msgctxt "settings-import"

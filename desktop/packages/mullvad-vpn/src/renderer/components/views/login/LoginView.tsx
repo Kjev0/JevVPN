@@ -21,6 +21,7 @@ import { LoginState } from '../../../redux/account/reducers';
 import { useSelector } from '../../../redux/store';
 import Accordion from '../../Accordion';
 import { AppMainHeader } from '../../app-main-header';
+import { GuestSkipButton } from '../../GuestSkipButton';
 import ClearAccountHistoryDialog from './ClearAccountHistoryDialog';
 import CreateAccountDialog from './CreateAccountDialog';
 import {
@@ -451,6 +452,7 @@ class Login extends React.Component<IProps, IState> {
             </Link.Text>
           </Link>
         </Flex>
+        <GuestSkipButton />
         <CreateAccountDialog
           open={this.state.createAccountDialogVisible}
           onOpenChange={this.setCreateAccountDialogVisible}
