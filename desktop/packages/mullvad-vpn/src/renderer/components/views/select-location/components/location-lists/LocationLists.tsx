@@ -1,5 +1,6 @@
 import React from 'react';
 
+import { useHasSubscription } from '../../../../../features/account/hooks';
 import { useRecents } from '../../../../../features/locations/hooks';
 import { LocationType } from '../../../../../features/locations/types';
 import { FlexColumn } from '../../../../../lib/components/flex-column';
@@ -8,7 +9,7 @@ import { useScrollPositionContext } from '../../ScrollPositionContext';
 import { CountryLocations } from '../country-locations';
 import { CustomListLocations } from '../custom-list-locations';
 import { NoSearchResult } from '../no-search-result';
-import { OwnConfigLocations, useOwnConfigs } from '../own-config-locations';
+import { MullvadServersLocked, OwnConfigLocations, useOwnConfigs } from '../own-config-locations';
 import { RecentLocations } from '../recent-locations';
 import { useHasCustomLists, useHasSearched, useHasSearchedLocations } from './hooks';
 import { LocationListsProvider, useLocationListsContext } from './LocationListsContext';
@@ -25,14 +26,17 @@ function LocationsListsImpl() {
   const hasSearchedLocations = useHasSearchedLocations();
   const { type } = useLocationListsContext();
   const ownConfigs = useOwnConfigs();
+  const hasSubscription = useHasSubscription();
 
   // Imported configs only apply to the exit (single-hop) tunnel.
   const showOwnConfigs =
     type === 'exit' && ownConfigs !== undefined && (!hasSearched || ownConfigs.length > 0);
 
-  const showRecentLocations = !hasSearched && hasRecents;
-  const showCustomListLocationLists = !hasSearched || hasVisibleCustomLists;
-  const showCountryLocations = !hasSearched || hasSearchedLocations;
+  // Mullvad servers are only listed with a subscription to use them.
+  const showMullvadServersLocked = !hasSubscription && !hasSearched;
+  const showRecentLocations = hasSubscription && !hasSearched && hasRecents;
+  const showCustomListLocationLists = hasSubscription && (!hasSearched || hasVisibleCustomLists);
+  const showCountryLocations = hasSubscription && (!hasSearched || hasSearchedLocations);
 
   const { resetScroll } = useScrollPositionContext();
   const resetScrollEffectEvent = useEffectEvent(() => resetScroll());
@@ -54,6 +58,7 @@ function LocationsListsImpl() {
   return (
     <FlexColumn gap="large">
       {showOwnConfigs && <OwnConfigLocations configs={ownConfigs} />}
+      {showMullvadServersLocked && <MullvadServersLocked />}
       {showRecentLocations && <RecentLocations />}
       {showCustomListLocationLists && <CustomListLocations />}
       {showCountryLocations && <CountryLocations />}

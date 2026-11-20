@@ -1,3 +1,4 @@
+import { useHasSubscription } from '../../../../features/account/hooks';
 import { useActiveFilters } from '../../../../features/locations/hooks';
 import { useIsUsingMagicMultihop, useMultihop } from '../../../../features/multihop/hooks';
 import { useSelectLocationViewContext } from '../SelectLocationViewContext';
@@ -7,8 +8,10 @@ export function useShowFilterChips() {
   const { isAnyFilterActive } = useActiveFilters(locationType);
   const { multihop } = useMultihop();
   const isUsingMagicMultihop = useIsUsingMagicMultihop();
+  const hasSubscription = useHasSubscription();
 
-  if (locationType === 'automaticEntry') {
+  // Filters only apply to Mullvad relays, which are hidden without a subscription.
+  if (!hasSubscription || locationType === 'automaticEntry') {
     return false;
   }
 

@@ -1718,31 +1718,12 @@ impl Daemon {
     }
 
     async fn handle_device_event(&mut self, event: AccountEvent) {
-        // Guest mode: with an enabled custom VPN, an expired account switches to the standalone
-        // custom VPN tunnel instead of blocking. Mullvad relays stay unavailable.
-        #[cfg(feature = "custom-vpn")]
-        if let AccountEvent::Expiry(expiry) = &event {
-            let expired = *expiry < chrono::Utc::now();
-            let changed = self.parameters_generator.set_account_expired(expired).await;
-            if self.custom_vpn.active() && (expired || changed) {
-                if changed {
-                    self.reconnect_tunnel();
-                }
-                return;
-            }
-        }
-        // A new or removed account invalidates the cached expiry; the next Expiry event sets it.
-        #[cfg(feature = "custom-vpn")]
-        if matches!(
-            event,
-            AccountEvent::Device(
-                PrivateDeviceEvent::Login(_)
-                    | PrivateDeviceEvent::Logout
-                    | PrivateDeviceEvent::Revoked
-            )
-        ) {
-            self.parameters_generator.set_account_expired(false).await;
-        }
+        // An enabled own config never uses the Mullvad account, so account changes must not
+        // block or disconnect that tunnel.
+        let custom_vpn_active = cfg_select! {
+            feature = "custom-vpn" => self.custom_vpn.active(),
+            _ => false,
+        };
         match &event {
             AccountEvent::Device(PrivateDeviceEvent::Login(device)) => {
                 if let Err(error) = self
@@ -1773,21 +1754,23 @@ impl Daemon {
                 }
                 self.update_recents().await;
             }
-            AccountEvent::Device(PrivateDeviceEvent::Logout) => {
+            AccountEvent::Device(PrivateDeviceEvent::Logout) if !custom_vpn_active => {
                 log::info!("Disconnecting because account number was cleared");
                 self.set_target_state(TargetState::Unsecured).await;
             }
             // If we're currently in a secured state, reconnect to make sure we immediately
             // enter the error state.
             AccountEvent::Device(PrivateDeviceEvent::Revoked)
-                if *self.target_state == TargetState::Secured =>
+                if *self.target_state == TargetState::Secured && !custom_vpn_active =>
             {
                 self.connect_tunnel();
             }
             AccountEvent::Device(PrivateDeviceEvent::RotatedKey(_)) => {
                 self.schedule_reconnect(WG_RECONNECT_DELAY);
             }
-            AccountEvent::Expiry(expiry) if *self.target_state == TargetState::Secured => {
+            AccountEvent::Expiry(expiry)
+                if *self.target_state == TargetState::Secured && !custom_vpn_active =>
+            {
                 if expiry >= &chrono::Utc::now() {
                     if let TunnelState::Error(ref state) = self.tunnel_state
                         && matches!(state.cause(), ErrorStateCause::AuthFailed(_))

@@ -2644,6 +2644,10 @@ msgctxt "select-location-view"
 msgid "Your configs"
 msgstr ""
 
+msgctxt "select-location-view"
+msgid "Log in or add time to use Mullvad servers"
+msgstr ""
+
 msgctxt "settings-import"
 msgid "Clear all overrides"
 msgstr ""

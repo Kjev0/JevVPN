@@ -13,6 +13,7 @@ export interface SettingsDelegate {
   handleMonochromaticIconChange(value: boolean): void;
   handleUnpinnedWindowChange(): void;
   handleGuestModeChange(): void;
+  connectAllowed(): boolean;
 }
 
 export default class Settings implements Readonly<ISettings> {
@@ -198,6 +199,16 @@ export default class Settings implements Readonly<ISettings> {
     this.settingsValue = newSettings;
   }
 
+  // The daemon auto-connects at boot before the GUI runs, so only allow it when connecting
+  // cannot fall back to Mullvad relays the user has no subscription for.
+  public updateDaemonsAutoConnect() {
+    const daemonAutoConnect =
+      this.guiSettings.autoConnect && getOpenAtLogin() && this.delegate.connectAllowed();
+    if (daemonAutoConnect !== this.settingsValue.autoConnect) {
+      void this.daemonRpc.setAutoConnect(daemonAutoConnect);
+    }
+  }
+
   private registerGuiSettingsListener() {
     this.guiSettings.onChange = (newState, oldState) => {
       if (oldState.monochromaticIcon !== newState.monochromaticIcon) {
@@ -231,12 +242,5 @@ export default class Settings implements Readonly<ISettings> {
       );
     }
     return Promise.resolve();
-  }
-
-  private updateDaemonsAutoConnect() {
-    const daemonAutoConnect = this.guiSettings.autoConnect && getOpenAtLogin();
-    if (daemonAutoConnect !== this.settingsValue.autoConnect) {
-      void this.daemonRpc.setAutoConnect(daemonAutoConnect);
-    }
   }
 }

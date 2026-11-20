@@ -1425,12 +1425,10 @@ impl ManagementService for ManagementServiceImpl {
         let body = resolve_endpoint_hosts(&request.into_inner())
             .await
             .map_err(Status::invalid_argument)?;
-        let config =
-            <talpid_types::net::wireguard::CustomVpnConfig as std::str::FromStr>::from_str(&body)
-                .map_err(|err| Status::invalid_argument(format!("failed to parse config: {err}")))?;
+        let config = parse_imported_config(&body).map_err(Status::invalid_argument)?;
         let (tx, rx) = oneshot::channel();
         self.send_command_to_daemon(DaemonCommand::CustomVpn(
-            custom_vpn::CustomVpnCommand::SetConfig(tx, Some(config.into())),
+            custom_vpn::CustomVpnCommand::SetConfig(tx, Some(config)),
         ))?;
         let error = self.wait_for_result(rx).await?;
         Ok(Response::new(types::CustomVpnConfigError { error }))
@@ -1915,9 +1913,34 @@ fn map_protobuf_type_err(err: types::FromProtobufTypeError) -> Status {
     }
 }
 
+/// Parses an imported `.conf`. Importing means "use this config", so it is stored enabled.
+#[cfg(feature = "custom-vpn")]
+fn parse_imported_config(
+    body: &str,
+) -> Result<talpid_types::net::wireguard::CustomVpnConfigUpdate, String> {
+    let mut config =
+        <talpid_types::net::wireguard::CustomVpnConfig as std::str::FromStr>::from_str(body)
+            .map_err(|err| format!("failed to parse config: {err}"))?;
+    config.enabled = true;
+    Ok(config.into())
+}
+
 #[cfg(all(test, feature = "custom-vpn"))]
 mod test {
-    use super::resolve_endpoint_hosts;
+    use super::{parse_imported_config, resolve_endpoint_hosts};
+
+    #[test]
+    fn imported_config_is_enabled() {
+        let config = "[Interface]
+PrivateKey = AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+            Address = 10.0.0.2/24
+[Peer]
+PublicKey = BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBE=
+            AllowedIPs = 0.0.0.0/0
+Endpoint = 1.2.3.4:51820
+";
+        assert!(parse_imported_config(config).unwrap().enabled);
+    }
 
     #[tokio::test]
     async fn resolves_endpoint_hostnames() {

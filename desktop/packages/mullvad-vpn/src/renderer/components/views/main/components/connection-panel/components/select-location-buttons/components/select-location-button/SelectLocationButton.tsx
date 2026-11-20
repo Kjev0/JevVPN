@@ -4,6 +4,7 @@ import { sprintf } from 'sprintf-js';
 import { ICustomList } from '../../../../../../../../../../shared/daemon-rpc-types';
 import { messages, relayLocations } from '../../../../../../../../../../shared/gettext';
 import { RoutePath } from '../../../../../../../../../../shared/routes';
+import { useActiveWireguardConfig } from '../../../../../../../../../features/custom-vpn-configs/hooks';
 import { Button, ButtonProps } from '../../../../../../../../../lib/components';
 import { TransitionType, useHistory } from '../../../../../../../../../lib/history';
 import {
@@ -19,10 +20,11 @@ export function SelectLocationButton(props: ButtonProps) {
   const relaySettings = useSelector((state) => state.settings.relaySettings);
   const relayLocations = useSelector((state) => state.settings.relayLocations);
   const customLists = useSelector((state) => state.settings.customLists);
+  const activeConfig = useActiveWireguardConfig();
 
   const selectedRelayName = useMemo(
-    () => getRelayName(relaySettings, customLists, relayLocations),
-    [relaySettings, customLists, relayLocations],
+    () => activeConfig?.name ?? getRelayName(relaySettings, customLists, relayLocations),
+    [activeConfig, relaySettings, customLists, relayLocations],
   );
 
   const onSelectLocation = useCallback(() => {

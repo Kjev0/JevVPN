@@ -27,8 +27,42 @@ export default class CustomVpnConfigs {
 
   // Every operation runs through this chain so concurrent IPC calls cannot interleave.
   private queue: Promise<unknown> = this.load();
+  private readonly loaded = this.queue;
 
-  public constructor(private daemonRpc: DaemonRpc) {}
+  public constructor(
+    private daemonRpc: DaemonRpc,
+    private onChange: () => void,
+    // Runs before the active config is turned off, while the daemon still tunnels to it.
+    private beforeDeactivate: () => Promise<void>,
+  ) {}
+
+  // Resolves once the stored configs have been read from disk.
+  public whenLoaded(): Promise<unknown> {
+    return this.loaded;
+  }
+
+  // An active WireGuard config means the daemon tunnels directly to it, without Mullvad relays.
+  public hasActiveWireguard(): boolean {
+    return this.configs.some((config) => config.active && config.protocol === 'wireguard');
+  }
+
+  // The daemon may have lost the active config (older builds imported it disabled, CLI clear,
+  // settings reset). Re-import it so connecting never falls back to Mullvad relays.
+  public syncWithDaemon(): Promise<void> {
+    return this.enqueue(async () => {
+      const active = this.configs.find(
+        (config) => config.active && config.protocol === 'wireguard',
+      );
+      if (!active || (await this.daemonRpc.hasEnabledCustomVpn())) return;
+      try {
+        await this.daemonRpc.importCustomVpnConfig(this.decrypt(active));
+      } catch (e) {
+        log.error(`Failed to re-apply the active custom VPN config: ${(e as Error).message}`);
+        active.active = false;
+        await this.save();
+      }
+    });
+  }
 
   public registerIpcListeners() {
     const channel = IpcMainEventChannel.customVpnConfigs;
@@ -110,6 +144,7 @@ export default class CustomVpnConfigs {
     if (target) {
       await this.daemonRpc.importCustomVpnConfig(this.decrypt(target));
     } else {
+      if (this.configs.some((config) => config.active)) await this.beforeDeactivate();
       await this.daemonRpc.clearCustomVpnSettings();
     }
 
@@ -129,6 +164,7 @@ export default class CustomVpnConfigs {
     await fs.writeFile(tmpPath, JSON.stringify(this.configs), { mode: 0o600 });
     await fs.rename(tmpPath, this.filePath);
     IpcMainEventChannel.customVpnConfigs.notify?.(this.metadata());
+    this.onChange();
   }
 
   private metadata(): ICustomVpnConfig[] {

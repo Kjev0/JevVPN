@@ -1,6 +1,7 @@
 import styled from 'styled-components';
 
 import { messages } from '../../../../../../shared/gettext';
+import { useHasSubscription } from '../../../../../features/account/hooks';
 import { FlexColumn } from '../../../../../lib/components/flex-column';
 import { colors, spacings } from '../../../../../lib/foundations';
 import { AppNavigationHeader } from '../../../../app-navigation-header';
@@ -13,6 +14,9 @@ export const StyledSelectLocationHeader = styled.div`
 `;
 
 export function SelectLocationHeader({ children }: React.PropsWithChildren) {
+  // The menu only holds relay options (filters, multihop), so hide it without a subscription.
+  const hasSubscription = useHasSubscription();
+
   return (
     <StyledSelectLocationHeader>
       <AppNavigationHeader
@@ -21,7 +25,7 @@ export function SelectLocationHeader({ children }: React.PropsWithChildren) {
           messages.pgettext('select-location-nav', 'Select location')
         }
         titleVisible>
-        <HeaderMenuIconButton />
+        {hasSubscription && <HeaderMenuIconButton />}
       </AppNavigationHeader>
       <FlexColumn margin={{ horizontal: 'medium' }}>{children}</FlexColumn>
     </StyledSelectLocationHeader>

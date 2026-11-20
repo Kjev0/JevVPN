@@ -5,11 +5,12 @@ import { messages } from '../../../../../../shared/gettext';
 import log from '../../../../../../shared/logging';
 import { RoutePath } from '../../../../../../shared/routes';
 import { useAppContext } from '../../../../../context';
+import { useCustomVpnConfigs } from '../../../../../features/custom-vpn-configs/hooks';
 import { FootnoteMiniSemiBold } from '../../../../../lib/components';
 import { FlexColumn } from '../../../../../lib/components/flex-column';
 import { SectionTitle } from '../../../../../lib/components/section-title';
 import { TransitionType, useHistory } from '../../../../../lib/history';
-import { useEffectEvent } from '../../../../../lib/utility-hooks';
+import { useSelector } from '../../../../../redux/store';
 import { StatusDialog } from '../../../../status-dialog';
 import { useSelectLocationViewContext } from '../../SelectLocationViewContext';
 import { Location } from '../location-list-item';
@@ -23,12 +24,8 @@ function errorMessage(error: unknown): string {
 
 // Imported configs matching the search term, or undefined until loaded.
 export function useOwnConfigs(): ICustomVpnConfig[] | undefined {
-  const { getCustomVpnConfigs } = useAppContext();
   const { searchTerm } = useSelectLocationViewContext();
-  const [configs, setConfigs] = React.useState<ICustomVpnConfig[]>();
-
-  const load = useEffectEvent(async () => setConfigs(await getCustomVpnConfigs()));
-  React.useEffect(() => void load(), []);
+  const configs = useCustomVpnConfigs();
 
   return React.useMemo(() => {
     const term = searchTerm.toLowerCase();
@@ -149,5 +146,36 @@ export function OwnConfigLocations({ configs }: OwnConfigLocationsProps) {
         </StatusDialog.ButtonGroup>
       </StatusDialog>
     </FlexColumn>
+  );
+}
+
+// Shown instead of the Mullvad locations when there is no subscription to use them with.
+export function MullvadServersLocked() {
+  const history = useHistory();
+  const loggedIn = useSelector((state) => state.account.status.type === 'ok');
+  const onClick = React.useCallback(
+    () => history.push(loggedIn ? RoutePath.expired : RoutePath.login),
+    [history, loggedIn],
+  );
+
+  return (
+    <Location>
+      <Location.ListItem data-testid="mullvad-servers-locked">
+        <Location.ListItem.Trigger onClick={onClick}>
+          <Location.ListItem.Item>
+            <Location.ListItem.Item.Label>
+              {
+                // TRANSLATORS: Shown in select location instead of the Mullvad servers when the
+                // TRANSLATORS: user is logged out or has no time left on their account.
+                messages.pgettext(
+                  'select-location-view',
+                  'Log in or add time to use Mullvad servers',
+                )
+              }
+            </Location.ListItem.Item.Label>
+          </Location.ListItem.Item>
+        </Location.ListItem.Trigger>
+      </Location.ListItem>
+    </Location>
   );
 }

@@ -11,6 +11,7 @@ import {
   ISplitTunnelingApplication,
 } from '../shared/application-types';
 import { dimensions, Url } from '../shared/constants';
+import type { ICustomVpnConfig } from '../shared/custom-vpn-config';
 import {
   AccessMethodSetting,
   AccountNumber,
@@ -491,6 +492,8 @@ export default class AppRenderer {
   public importSettingsText = (text: string) => IpcRendererEventChannel.settings.importText(text);
   public clearAllRelayOverrides = () => IpcRendererEventChannel.settings.clearAllRelayOverrides();
   public getCustomVpnConfigs = () => IpcRendererEventChannel.customVpnConfigs.get();
+  public listenCustomVpnConfigs = (fn: (configs: ICustomVpnConfig[]) => void) =>
+    IpcRendererEventChannel.customVpnConfigs.listen(fn);
   public importCustomVpnConfig = (path: string) =>
     IpcRendererEventChannel.customVpnConfigs.importFile(path);
   public removeCustomVpnConfig = (id: string) =>

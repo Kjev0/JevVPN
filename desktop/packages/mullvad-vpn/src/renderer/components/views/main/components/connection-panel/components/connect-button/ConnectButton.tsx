@@ -4,22 +4,21 @@ import { messages } from '../../../../../../../../shared/gettext';
 import log from '../../../../../../../../shared/logging';
 import { RoutePath } from '../../../../../../../../shared/routes';
 import { useAppContext } from '../../../../../../../context';
+import { useHasSubscription } from '../../../../../../../features/account/hooks';
+import { useActiveWireguardConfig } from '../../../../../../../features/custom-vpn-configs/hooks';
 import { Button, ButtonProps } from '../../../../../../../lib/components';
 import { useHistory } from '../../../../../../../lib/history';
-import { useSelector } from '../../../../../../../redux/store';
 
 export function ConnectButton(props: ButtonProps) {
-  const { connectTunnel, getCustomVpnConfigs } = useAppContext();
+  const { connectTunnel } = useAppContext();
   const { push } = useHistory();
-  const guestMode = useSelector((state) => state.settings.guiSettings.guestMode);
+  const hasSubscription = useHasSubscription();
+  const activeConfig = useActiveWireguardConfig();
 
   const onConnect = useCallback(async () => {
     try {
-      // Guests can only use their own WireGuard configs; Mullvad servers need an account.
-      if (
-        guestMode &&
-        !(await getCustomVpnConfigs()).some((c) => c.active && c.protocol === 'wireguard')
-      ) {
+      // Without a subscription only own WireGuard configs can be used, never Mullvad servers.
+      if (!hasSubscription && !activeConfig) {
         push(RoutePath.customVpnConfigs);
         return;
       }
@@ -28,7 +27,7 @@ export function ConnectButton(props: ButtonProps) {
       const error = e as Error;
       log.error(`Failed to connect the tunnel: ${error.message}`);
     }
-  }, [connectTunnel, getCustomVpnConfigs, guestMode, push]);
+  }, [activeConfig, connectTunnel, hasSubscription, push]);
 
   return (
     <Button color="success" onClick={onConnect} {...props}>

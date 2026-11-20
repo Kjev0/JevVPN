@@ -2,6 +2,7 @@ import { sprintf } from 'sprintf-js';
 import styled from 'styled-components';
 
 import { messages } from '../../../../../../../../shared/gettext';
+import { useActiveWireguardConfig } from '../../../../../../../features/custom-vpn-configs/hooks';
 import { colors } from '../../../../../../../lib/foundations';
 import { IConnectionReduxState } from '../../../../../../../redux/connection/reducers';
 import { useSelector } from '../../../../../../../redux/store';
@@ -23,7 +24,8 @@ const StyledHostname = styled.span(smallText, {
 export function Hostname() {
   const tunnelState = useSelector((state) => state.connection.status.state);
   const connection = useSelector((state) => state.connection);
-  const text = getHostnameText(connection);
+  const activeConfig = useActiveWireguardConfig();
+  const text = activeConfig?.endpoint ?? getHostnameText(connection);
 
   return (
     <StyledAccordion expanded={tunnelState === 'connecting' || tunnelState === 'connected'}>

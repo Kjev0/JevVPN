@@ -158,7 +158,14 @@ class ApplicationMain
 
     this.version = new Version(this, this.daemonRpc, UPDATE_NOTIFICATION_DISABLED);
     this.settings = new Settings(this, this.daemonRpc, this.version.currentVersion);
-    this.customVpnConfigs = new CustomVpnConfigs(this.daemonRpc);
+    this.customVpnConfigs = new CustomVpnConfigs(
+      this.daemonRpc,
+      this.onConnectAllowedChange,
+      // Without a subscription, clearing the config while secured would reconnect via relays.
+      async () => {
+        if (!this.hasSubscription()) await this.disconnectTunnel('gui-disconnect-button');
+      },
+    );
     this.account = new Account(this, this.daemonRpc);
     this.appUpgrade = new AppUpgrade(this.daemonRpc);
   }
@@ -276,8 +283,15 @@ class ApplicationMain
   // Used by the tray menu to enable Connect/Reconnect.
   public isLoggedIn = () => this.connectAllowed();
 
-  // Guests may connect too; the daemon stays the authority and errors without an active custom config.
-  public connectAllowed = () => this.account.isLoggedIn() || this.settings.gui.guestMode;
+  // Connecting is allowed with a Mullvad subscription, or with an active WireGuard config, which the
+  // daemon tunnels to directly. Without either, connecting would try Mullvad relays the user cannot use.
+  public connectAllowed = () =>
+    this.customVpnConfigs.hasActiveWireguard() || this.hasSubscription();
+
+  public hasSubscription = () =>
+    this.account.isLoggedIn() &&
+    this.account.accountData !== undefined &&
+    !hasExpired(this.account.accountData.expiry);
 
   public disconnectAndQuit = async (source: DisconnectSource) => {
     if (this.daemonRpc.isConnected) {
@@ -739,6 +753,12 @@ class ApplicationMain
       IpcMainEventChannel.daemon.notifyConnected?.();
     }
 
+    try {
+      await this.customVpnConfigs.syncWithDaemon();
+    } catch (e) {
+      log.error(`Failed to sync custom VPN config with the daemon: ${(e as Error).message}`);
+    }
+
     if (firstDaemonConnection) {
       void this.autoConnect();
     }
@@ -853,6 +873,7 @@ class ApplicationMain
   private setSettings(newSettings: ISettings) {
     const oldSettings = this.settings;
     this.settings.handleNewSettings(newSettings);
+    this.settings.updateDaemonsAutoConnect();
 
     this.userInterface?.updateTray(this.connectAllowed(), this.tunnelState.tunnelState);
 
@@ -1050,24 +1071,30 @@ class ApplicationMain
   private async autoConnect() {
     if (process.env.NODE_ENV === 'development') {
       log.info('Skip autoconnect in development');
-    } else if (
-      this.account.isLoggedIn() &&
-      (!this.account.accountData || !hasExpired(this.account.accountData.expiry))
-    ) {
-      if (this.settings.gui.autoConnect) {
-        try {
-          log.info('Autoconnect the tunnel');
+      return;
+    }
+    if (!this.settings.gui.autoConnect) {
+      log.info('Skip autoconnect because GUI setting is disabled');
+      return;
+    }
 
-          await this.daemonRpc.connectTunnel();
-        } catch (e) {
-          const error = e as Error;
-          log.error(`Failed to autoconnect the tunnel: ${error.message}`);
-        }
-      } else {
-        log.info('Skip autoconnect because GUI setting is disabled');
+    await this.customVpnConfigs.whenLoaded();
+    if (!this.customVpnConfigs.hasActiveWireguard()) {
+      // Account data is usually not fetched yet this early; it decides if relays may be used.
+      await this.account.fetchAccountData();
+    }
+
+    if (this.connectAllowed()) {
+      try {
+        log.info('Autoconnect the tunnel');
+
+        await this.daemonRpc.connectTunnel();
+      } catch (e) {
+        const error = e as Error;
+        log.error(`Failed to autoconnect the tunnel: ${error.message}`);
       }
     } else {
-      log.info('Skip autoconnect because account number is not set');
+      log.info('Skip autoconnect because there is no subscription or active WireGuard config');
     }
   }
 
@@ -1296,8 +1323,12 @@ class ApplicationMain
   // AccountDelegate
   public getLocale = () => this.locale;
   public getTunnelState = () => this.tunnelState.tunnelState;
-  public onDeviceEvent = () => {
+  public onConnectAllowedChange = () => {
     this.userInterface?.updateTray(this.connectAllowed(), this.tunnelState.tunnelState);
+    this.settings.updateDaemonsAutoConnect();
+  };
+  public onDeviceEvent = () => {
+    this.onConnectAllowedChange();
 
     if (this.isPerformingPostUpgrade) {
       void this.performPostUpgradeCheck();

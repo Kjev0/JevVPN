@@ -110,9 +110,6 @@ struct InnerParametersGenerator {
     account_manager: AccountManagerHandle,
     #[cfg(feature = "custom-vpn")]
     custom_vpn: Option<talpid_types::net::wireguard::CustomVpnConfig>,
-    /// Last known account expiry state. With an expired account, the custom VPN is used standalone.
-    #[cfg(feature = "custom-vpn")]
-    account_expired: bool,
 
     last_generated_relays: Option<LastSelectedRelays>,
 }
@@ -135,8 +132,6 @@ impl ParametersGenerator {
             account_manager,
             #[cfg(feature = "custom-vpn")]
             custom_vpn,
-            #[cfg(feature = "custom-vpn")]
-            account_expired: false,
             last_generated_relays: None,
         })))
     }
@@ -162,13 +157,6 @@ impl ParametersGenerator {
         config: Option<talpid_types::net::wireguard::CustomVpnConfig>,
     ) {
         self.0.lock().await.custom_vpn = config;
-    }
-
-    /// Records whether the account is out of time. Returns whether the value changed.
-    #[cfg(feature = "custom-vpn")]
-    pub async fn set_account_expired(&self, expired: bool) -> bool {
-        let mut inner = self.0.lock().await;
-        std::mem::replace(&mut inner.account_expired, expired) != expired
     }
 
     pub async fn last_relay_was_overridden(&self) -> bool {
@@ -276,6 +264,14 @@ impl InnerParametersGenerator {
         retry_attempt: u32,
         ip_availability: IpAvailability,
     ) -> Result<TunnelParameters, Error> {
+        // An enabled own config is exclusive: connect straight to the user's WireGuard server,
+        // whatever the account state. No relay selection, no device data, no Mullvad API.
+        #[cfg(feature = "custom-vpn")]
+        if let Some(config) = self.custom_vpn.as_ref() {
+            self.last_generated_relays = None;
+            return custom_vpn_tunnel_parameters(config, self.tunnel_options.clone());
+        }
+
         // Custom tunnel endpoints bypass relay selection entirely.
         if let Some(endpoint) = self.custom_endpoint.as_ref() {
             self.last_generated_relays = None;
@@ -287,19 +283,7 @@ impl InnerParametersGenerator {
                 });
         }
 
-        let device = self.device().await;
-
-        // Guest mode: without a usable Mullvad account, connect straight to the user's own
-        // WireGuard server. Mullvad relays are never used on this path.
-        #[cfg(feature = "custom-vpn")]
-        if let Some(config) = self.custom_vpn.as_ref()
-            && (self.account_expired || device.is_err())
-        {
-            self.last_generated_relays = None;
-            return custom_vpn_tunnel_parameters(config, self.tunnel_options.clone());
-        }
-
-        let data = device?;
+        let data = self.device().await?;
 
         self.relay_selector.set_ip_availability(ip_availability);
         if retry_attempt == 0 {
@@ -372,8 +356,9 @@ impl InnerParametersGenerator {
                 .into_talpid_tunnel_options(),
             generic_options: self.tunnel_options.generic.clone(),
             obfuscation: obfuscator_config,
+            // Own configs are never nested in a Mullvad tunnel; `generate` returns early for them.
             #[cfg(feature = "custom-vpn")]
-            custom_vpn: self.custom_vpn.clone(),
+            custom_vpn: None,
         }
     }
 

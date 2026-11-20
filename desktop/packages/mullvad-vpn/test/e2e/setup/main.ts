@@ -197,10 +197,12 @@ class ApplicationMain {
         active: false,
       };
       this.customVpnConfigs.push(config);
+      this.notifyCustomVpnConfigs();
       return config;
     });
     IpcMainEventChannel.customVpnConfigs.handleRemove((id) => {
       this.customVpnConfigs = this.customVpnConfigs.filter((config) => config.id !== id);
+      this.notifyCustomVpnConfigs();
       return Promise.resolve();
     });
     IpcMainEventChannel.customVpnConfigs.handleSetActive((id) => {
@@ -208,8 +210,14 @@ class ApplicationMain {
         return Promise.reject(new Error('The JevVPN service only supports WireGuard tunnels.'));
       }
       this.customVpnConfigs.forEach((config) => (config.active = config.id === id));
+      this.notifyCustomVpnConfigs();
       return Promise.resolve();
     });
+  }
+
+  // Like the real main process, push config changes so views showing them stay current.
+  private notifyCustomVpnConfigs() {
+    IpcMainEventChannel.customVpnConfigs.notify?.(this.customVpnConfigs.map((c) => ({ ...c })));
   }
 
   private updateCurrentLocale(locale: string) {

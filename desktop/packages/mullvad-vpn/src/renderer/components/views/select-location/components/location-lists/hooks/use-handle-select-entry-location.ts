@@ -1,5 +1,6 @@
 import React from 'react';
 
+import { useAppContext } from '../../../../../../context';
 import { useRelayLocations } from '../../../../../../features/locations/hooks';
 import { type AnyLocation } from '../../../../../../features/locations/types';
 import { useSelectLocationViewContext } from '../../../SelectLocationViewContext';
@@ -7,15 +8,24 @@ import { useSelectLocationViewContext } from '../../../SelectLocationViewContext
 export function useHandleSelectEntryLocation() {
   const { setLocationType, setSearchTerm, setIsolatedItem } = useSelectLocationViewContext();
   const { selectEntryRelayLocation } = useRelayLocations();
+  const { setActiveCustomVpnConfig } = useAppContext();
 
   const handleSelectEntryLocation = React.useCallback(
     async (entryLocation: AnyLocation | 'any') => {
       setLocationType('exit');
+      // Picking a relay means using Mullvad servers instead of an own config.
+      await setActiveCustomVpnConfig(undefined);
       await selectEntryRelayLocation(entryLocation === 'any' ? 'any' : entryLocation.details);
       setIsolatedItem(undefined);
       setSearchTerm('');
     },
-    [selectEntryRelayLocation, setIsolatedItem, setLocationType, setSearchTerm],
+    [
+      selectEntryRelayLocation,
+      setActiveCustomVpnConfig,
+      setIsolatedItem,
+      setLocationType,
+      setSearchTerm,
+    ],
   );
 
   return handleSelectEntryLocation;

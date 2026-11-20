@@ -642,6 +642,13 @@ export class DaemonRpc extends GrpcClient<ManagementServiceClient> {
     }
   }
 
+  public async hasEnabledCustomVpn(): Promise<boolean> {
+    const response = await this.callEmpty<grpcTypes.CustomVpnSettings>(
+      this.client.getCustomVpnSettings,
+    );
+    return response.getConfigsList().some((config) => config.getEnabled());
+  }
+
   public async clearCustomVpnSettings(): Promise<void> {
     const response = await this.callEmpty<grpcTypes.CustomVpnConfigError>(
       this.client.clearCustomVpnSettings,

@@ -1,6 +1,7 @@
 import styled from 'styled-components';
 
 import { TunnelState } from '../../../../../../../../shared/daemon-rpc-types';
+import { useActiveWireguardConfig } from '../../../../../../../features/custom-vpn-configs/hooks';
 import { colors } from '../../../../../../../lib/foundations';
 import { useSelector } from '../../../../../../../redux/store';
 import { largeText } from '../../../../../../common-styles';
@@ -14,7 +15,13 @@ const StyledLocation = styled.span(largeText, {
 
 export function Location() {
   const connection = useSelector((state) => state.connection);
-  const text = getLocationText(connection.status, connection.country, connection.city);
+  const activeConfig = useActiveWireguardConfig();
+  const state = connection.status.state;
+  // When tunneling to an own config, it is the connection target instead of a Mullvad location.
+  const text =
+    activeConfig && (state === 'connected' || state === 'connecting')
+      ? activeConfig.name
+      : getLocationText(connection.status, connection.country, connection.city);
 
   return (
     <ConnectionPanelAccordion expanded={connection.status.state !== 'error'}>

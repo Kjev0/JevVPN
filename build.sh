@@ -368,6 +368,18 @@ else
     mkdir -p "build"
 fi
 
+# Bundle an offline relay list (same tool as scripts/commit-relay-list) if none is checked in.
+RELAY_LIST_PATH="dist-assets/relays/relays.json"
+if [[ ! -s "$RELAY_LIST_PATH" ]]; then
+    log_info "Fetching bundled relay list..."
+    if cargo run -q -p mullvad-api --bin relay-list > "$RELAY_LIST_PATH.tmp" && [[ -s "$RELAY_LIST_PATH.tmp" ]]; then
+        mv "$RELAY_LIST_PATH.tmp" "$RELAY_LIST_PATH"
+    else
+        rm -f "$RELAY_LIST_PATH.tmp"
+        log_error "Failed to fetch relay list; the installer will ship without one."
+    fi
+fi
+
 # Everything that goes into the installers and packages is in place by now, so give it all one
 # deterministic modification time. The packaging tools record these timestamps, and they would
 # otherwise be whenever this machine happened to compile a binary or check out a file, which
@@ -379,7 +391,6 @@ log_info "Normalizing modification times of everything to be packaged..."
 TZ=UTC printf -v source_date_iso '%(%Y-%m-%dT%H:%M:%SZ)T' "$SOURCE_DATE_EPOCH"
 find dist-assets build -exec touch -h -d "$source_date_iso" {} +
 
-RELAY_LIST_PATH="dist-assets/relays/relays.json"
 if [[ "$IS_RELEASE" == "true" && ! -s "$RELAY_LIST_PATH" ]]; then
     log_error "Release build requires a non-empty $RELAY_LIST_PATH."
     log_error "Typically done by running desktop/scripts/release/1-prepare-release."

@@ -39,7 +39,7 @@ test.describe('Guest mode', () => {
   });
 
   test('Connect without active config opens VPN configs', async () => {
-    await util.ipc.customVpnConfigs.get.handle([]);
+    await util.ipc.customVpnConfigs[''].notify([]);
     await page.getByRole('button', { name: 'Connect', exact: true }).click();
     await util.expectRoute(RoutePath.customVpnConfigs);
   });

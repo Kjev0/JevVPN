@@ -29,6 +29,7 @@ export interface LocaleProvider {
 
 export interface AccountDelegate {
   onDeviceEvent(): void;
+  onConnectAllowedChange(): void;
 }
 
 export default class Account {
@@ -110,6 +111,17 @@ export default class Account {
       this.accountDataCache.fetch(this.getAccountNumber()!);
     }
   };
+
+  // Resolves once fresh account data is known, or the fetch failed.
+  public fetchAccountData(): Promise<void> {
+    const accountNumber = this.getAccountNumber();
+    if (!this.daemonRpc.isConnected || !this.isLoggedIn() || accountNumber === undefined) {
+      return Promise.resolve();
+    }
+    return new Promise((resolve) =>
+      this.accountDataCache.fetch(accountNumber, { onFinish: resolve, onError: () => resolve() }),
+    );
+  }
 
   public detectStaleAccountExpiry(tunnelState: TunnelState) {
     const expired = !this.accountData || hasExpired(this.accountData.expiry);
@@ -199,6 +211,7 @@ export default class Account {
     this.accountDataValue = accountData;
     this.hasExpired = this.accountData !== undefined && hasExpired(this.accountData?.expiry);
     IpcMainEventChannel.account.notify?.(this.accountData);
+    this.delegate.onConnectAllowedChange();
     this.showNotifications();
   }
 
