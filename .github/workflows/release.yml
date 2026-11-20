@@ -1,0 +1,96 @@
+---
+# Publishes a JevVPN release. Push a tag equal to dist-assets/desktop-product-version.txt
+# (format YYYY.N, e.g. 2026.6) and this builds Windows and Linux and creates the release.
+name: Release
+on:
+  push:
+    tags: ["20[0-9][0-9].*"]
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Windows installer
+    runs-on: windows-latest
+    steps:
+      - name: Set git config for long paths
+        run: git config --system core.longpaths true
+
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/mullvad-build-env
+
+      - name: Check tag matches product version
+        shell: bash
+        run: test "$(tr -d '[:space:]' < dist-assets/desktop-product-version.txt)" = "${GITHUB_REF_NAME}"
+
+      - name: Build installer
+        shell: bash
+        run: ./build.sh --optimize
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: windows
+          path: dist/*.exe
+
+  linux:
+    name: Linux packages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/mullvad-build-env
+
+      - name: Install packaging tools
+        run: sudo apt-get install -y rpm
+
+      - name: Build packages
+        shell: bash
+        run: ./build.sh --optimize
+
+      - name: Build .run installer
+        shell: bash
+        run: |
+          deb=(dist/*.deb)
+          bash dist-assets/linux/run-installer/make-run-installer.sh "${deb[0]}" \
+            "${deb[0]%_amd64.deb}_x86_64.run"
+
+      - name: Test .run installer (Arch Linux)
+        run: |
+          docker run --rm -v "$PWD:/w" archlinux:latest bash -c \
+            'pacman -Syu --noconfirm && bash /w/dist-assets/linux/run-installer/test-in-container.sh /w/dist/*.run'
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: linux
+          path: |
+            dist/*.deb
+            dist/*.rpm
+            dist/*.run
+
+  publish:
+    name: Publish release
+    needs: [windows, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          path: assets
+          merge-multiple: true
+
+      - name: Create release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd assets
+          for file in *; do sha256sum "$file" > "$file.sha256"; done
+          gh release create "${GITHUB_REF_NAME}" ./* -R "${{ github.repository }}" \
+            --title "JevVPN ${GITHUB_REF_NAME}" --generate-notes --latest
