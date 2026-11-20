@@ -19,6 +19,6 @@ test.afterAll(async () => {
 
 test('Validate title', async () => {
   const title = await page.title();
-  expect(title).toBe('Mullvad VPN');
+  expect(title).toBe('JevVPN');
   await expect(page.locator('header')).toBeVisible();
 });

@@ -70,14 +70,15 @@ jobs:
       - name: UI tests (Linux)
         if: runner.os == 'Linux'
         working-directory: desktop
+        # One worker: some upstream UI tests are timing-sensitive under parallel load.
         # Sandbox disabled: Ubuntu 24.04 runners lack the userns permissions it needs.
-        run: NO_SANDBOX=1 npm run e2e:no-build -w mullvad-vpn -- --reporter=line
+        run: NO_SANDBOX=1 npm run e2e:no-build -w mullvad-vpn -- --reporter=line --workers=1
 
       - name: UI tests (Windows)
         if: runner.os == 'Windows'
         working-directory: desktop
         shell: bash
-        run: npm run e2e:no-build -w mullvad-vpn -- --reporter=line
+        run: npm run e2e:no-build -w mullvad-vpn -- --reporter=line --workers=1
 
   service:
     name: Rust service (${{ matrix.os }})

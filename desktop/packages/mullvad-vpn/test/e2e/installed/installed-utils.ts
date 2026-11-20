@@ -23,11 +23,11 @@ function getStartOptions() {
 function getAppInstallPath(): string {
   switch (process.platform) {
     case 'win32':
-      return 'C:\\Program Files\\Mullvad VPN\\Mullvad VPN.exe';
+      return 'C:\\Program Files\\JevVPN\\JevVPN.exe';
     case 'linux':
-      return '/opt/Mullvad VPN/mullvad-gui';
+      return '/opt/JevVPN/mullvad-gui';
     case 'darwin':
-      return '/Applications/Mullvad VPN.app/Contents/MacOS/Mullvad VPN';
+      return '/Applications/JevVPN.app/Contents/MacOS/JevVPN';
     default:
       throw new Error('Platform not supported');
   }
