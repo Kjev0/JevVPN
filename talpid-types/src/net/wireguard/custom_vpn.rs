@@ -14,6 +14,12 @@ use super::{PrivateKey, PublicKey};
 pub struct CustomVpnTunnelConfig {
     pub private_key: PrivateKey,
     pub ips: Vec<IpAddr>,
+    /// DNS resolvers from wg-quick `DNS = ...`, used inside the tunnel.
+    #[serde(default)]
+    pub dns: Vec<IpAddr>,
+    /// Tunnel MTU from wg-quick `MTU = ...`.
+    #[serde(default)]
+    pub mtu: Option<u16>,
 }
 
 /// Custom VPN peer configuration (WireGuard-based).
@@ -61,6 +67,8 @@ pub struct CustomVpnConfigUpdate {
 pub struct CustomVpnTunnelUpdate {
     pub private_key: Option<PrivateKey>,
     pub ips: Vec<IpAddr>,
+    pub dns: Vec<IpAddr>,
+    pub mtu: Option<u16>,
 }
 
 impl From<CustomVpnConfig> for CustomVpnConfigUpdate {
@@ -71,6 +79,8 @@ impl From<CustomVpnConfig> for CustomVpnConfigUpdate {
             tunnel: CustomVpnTunnelUpdate {
                 private_key: Some(config.tunnel.private_key),
                 ips: config.tunnel.ips,
+                dns: config.tunnel.dns,
+                mtu: config.tunnel.mtu,
             },
             peers: config.peers,
         }
@@ -90,12 +100,19 @@ impl CustomVpnConfigUpdate {
                 })?,
         };
 
+        let same_server = existing.filter(|config| config.peers == self.peers);
         Ok(CustomVpnConfig {
             enabled: self.enabled,
             name: self.name,
             tunnel: CustomVpnTunnelConfig {
                 private_key,
                 ips: self.tunnel.ips,
+                // Updates over gRPC carry no DNS/MTU, so keep the stored ones of the same server.
+                dns: match self.tunnel.dns.is_empty() {
+                    true => same_server.map(|c| c.tunnel.dns.clone()).unwrap_or_default(),
+                    false => self.tunnel.dns,
+                },
+                mtu: self.tunnel.mtu.or(same_server.and_then(|c| c.tunnel.mtu)),
             },
             peers: self.peers,
         })

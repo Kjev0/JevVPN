@@ -830,6 +830,8 @@ mod test {
                 tunnel: CustomVpnTunnelConfig {
                     private_key: PrivateKey::from([7; 32]),
                     ips: vec!["10.0.0.2".parse().unwrap()],
+                    dns: vec![],
+                    mtu: None,
                 },
                 peers: vec1![CustomVpnPeerConfig {
                     public_key: talpid_types::net::wireguard::PublicKey::from([1; 32]),

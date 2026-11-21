@@ -86,6 +86,7 @@ async fn set_custom_vpn_config(
 
     let effective = daemon.custom_vpn.settings().active().cloned();
     daemon.parameters_generator.set_custom_vpn(effective).await;
+    daemon.refresh_dns();
     Daemon::oneshot_send(tx, String::new(), "set_custom_vpn_config");
     daemon.reconnect_tunnel();
 
@@ -212,6 +213,8 @@ mod test {
             tunnel: CustomVpnTunnelConfig {
                 private_key: PrivateKey::new_from_random(),
                 ips: vec!["10.0.0.2".parse().unwrap()],
+                dns: vec![],
+                mtu: None,
             },
             peers: vec1![CustomVpnPeerConfig {
                 public_key: PublicKey::from_base64("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBE=")
@@ -320,6 +323,8 @@ mod test {
             tunnel: CustomVpnTunnelUpdate {
                 private_key: None,
                 ips: config.tunnel.ips.clone(),
+                dns: vec![],
+                mtu: None,
             },
             peers: config.peers.clone(),
         };

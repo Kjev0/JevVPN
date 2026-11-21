@@ -72,6 +72,8 @@ fn custom_vpn_tunnel_parameters(
     // Quantum resistance and DAITA need a Mullvad relay.
     options.quantum_resistant = false;
     options.daita = false;
+    // The server's MTU (wg-quick `MTU =`) wins; a too-large MTU silently drops TLS traffic.
+    options.mtu = config.tunnel.mtu.or(options.mtu);
 
     Ok(wireguard::TunnelParameters {
         connection: wireguard::ConnectionConfig {
@@ -467,6 +469,8 @@ mod test {
             tunnel: wireguard::CustomVpnTunnelConfig {
                 private_key: wireguard::PrivateKey::new_from_random(),
                 ips: vec!["10.8.0.2".parse().unwrap(), "fd00::2".parse().unwrap()],
+                dns: vec![],
+                mtu: None,
             },
             peers: vec1::vec1![wireguard::CustomVpnPeerConfig {
                 public_key: wireguard::PrivateKey::new_from_random().public_key(),

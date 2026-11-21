@@ -966,7 +966,13 @@ impl Daemon {
                 allow_lan: settings.allow_lan,
                 #[cfg(not(target_os = "android"))]
                 lockdown_mode: LockdownMode::from(settings.lockdown_mode),
-                dns_config: dns::addresses_from_options(&settings.tunnel_options.dns_options),
+                dns_config: dns::resolvers(
+                    &settings.tunnel_options.dns_options,
+                    &cfg_select! {
+                        feature = "custom-vpn" => custom_vpn_dns(&custom_vpn),
+                        _ => Vec::new(),
+                    },
+                ),
                 allowed_endpoint: access_mode_handler
                     .get_current()
                     .await
@@ -2880,8 +2886,13 @@ impl Daemon {
             Ok(settings_changed) => {
                 if settings_changed {
                     let settings = self.settings.settings();
-                    let resolvers =
-                        dns::addresses_from_options(&settings.tunnel_options.dns_options);
+                    let resolvers = dns::resolvers(
+                        &settings.tunnel_options.dns_options,
+                        &cfg_select! {
+                            feature = "custom-vpn" => custom_vpn_dns(&self.custom_vpn),
+                            _ => Vec::new(),
+                        },
+                    );
                     self.send_tunnel_command(TunnelCommand::Dns(
                         resolvers,
                         oneshot_map(tx, |tx, ()| {
@@ -3284,7 +3295,13 @@ impl Daemon {
         self.send_tunnel_command(TunnelCommand::AllowLan(self.settings.allow_lan, tx));
 
         let (tx, _rx) = oneshot::channel();
-        let dns = dns::addresses_from_options(&self.settings.tunnel_options.dns_options);
+        let dns = dns::resolvers(
+            &self.settings.tunnel_options.dns_options,
+            &cfg_select! {
+                feature = "custom-vpn" => custom_vpn_dns(&self.custom_vpn),
+                _ => Vec::new(),
+            },
+        );
         self.send_tunnel_command(TunnelCommand::Dns(dns, tx));
 
         let version_handle = self.version_handle.clone();
@@ -3634,6 +3651,17 @@ impl Daemon {
         }
     }
 
+    /// Re-send the DNS resolvers, e.g. after the active custom VPN config changed.
+    #[cfg(feature = "custom-vpn")]
+    fn refresh_dns(&self) {
+        let (tx, _rx) = oneshot::channel();
+        let dns = dns::resolvers(
+            &self.settings.tunnel_options.dns_options,
+            &custom_vpn_dns(&self.custom_vpn),
+        );
+        self.send_tunnel_command(TunnelCommand::Dns(dns, tx));
+    }
+
     fn send_tunnel_command(&self, command: TunnelCommand) {
         self.tunnel_state_machine_handle
             .command_tx()
@@ -3765,4 +3793,13 @@ async fn delete_split_filter_migration_scenario(cache_dir: impl AsRef<Path>) -> 
         Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()),
         Err(err) => Err(err),
     }
+}
+
+/// DNS resolvers of the active custom VPN config, if any.
+#[cfg(feature = "custom-vpn")]
+fn custom_vpn_dns(custom_vpn: &custom_vpn::CustomVpnSettingsPersister) -> Vec<std::net::IpAddr> {
+    custom_vpn
+        .active_config()
+        .map(|config| config.tunnel.dns)
+        .unwrap_or_default()
 }

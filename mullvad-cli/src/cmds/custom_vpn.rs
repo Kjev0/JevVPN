@@ -130,6 +130,8 @@ impl CustomVpn {
             tunnel: talpid_types::net::wireguard::CustomVpnTunnelUpdate {
                 private_key: Some(private_key),
                 ips: tunnel_ip,
+                dns: vec![],
+                mtu: None,
             },
             peers: vec1::vec1![CustomVpnPeerConfig {
                 public_key: peer_pubkey,

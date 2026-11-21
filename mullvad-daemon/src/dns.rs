@@ -15,6 +15,15 @@ const DNS_ADULT_BLOCKING_IP_BIT: u8 = 1 << 3; // 0b00001000
 const DNS_GAMBLING_BLOCKING_IP_BIT: u8 = 1 << 4; // 0b00010000
 const DNS_SOCIAL_MEDIA_BLOCKING_IP_BIT: u8 = 1 << 5; // 0b00100000
 
+/// Return the DNS resolvers to use. With default DNS settings, an active custom VPN config's
+/// own resolvers (wg-quick `DNS =`) are used, since the Mullvad defaults don't exist there.
+pub fn resolvers(options: &DnsOptions, custom_vpn_dns: &[IpAddr]) -> DnsConfig {
+    if options.state == DnsState::Default && !custom_vpn_dns.is_empty() {
+        return DnsConfig::from_addresses(custom_vpn_dns, &[]);
+    }
+    addresses_from_options(options)
+}
+
 /// Return the DNS resolvers to use
 pub fn addresses_from_options(options: &DnsOptions) -> DnsConfig {
     match options.state {

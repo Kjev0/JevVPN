@@ -1,9 +1,10 @@
-//! Parser for the `wg-quick` config file format (sans DNS and some other things).
+//! Parser for the `wg-quick` config file format (sans some fields, see below).
 //!
 //! The parser is exposed as `impl FromStr for CustomVpnConfig`, so a `.conf` file can be
 //! parsed with `CustomVpnConfig::from_str(...)`. Peer `Endpoint`s must be IP addresses
 //! and ports; hostnames are not resolved.
 
+use std::net::IpAddr;
 use std::str::FromStr;
 
 use ipnetwork::IpNetwork;
@@ -46,12 +47,16 @@ pub enum WgConfigParseError {
     },
     #[error("Invalid Endpoint '{0}' (expected <host>:<port>)")]
     InvalidEndpoint(String),
+    #[error("Invalid MTU '{0}'")]
+    InvalidMtu(String),
 }
 
 #[derive(Default)]
 struct InterfaceBuilder {
     private_key: Option<PrivateKey>,
     addresses: Vec<IpNetwork>,
+    dns: Vec<IpAddr>,
+    mtu: Option<u16>,
 }
 
 #[derive(Default)]
@@ -73,7 +78,7 @@ enum Section {
 /// * `[Peer]`: `PublicKey`, `AllowedIPs`, `Endpoint` - `Endpoint` is stored as a
 ///   `<host>:<port>` string, and host must be an IP literal.
 ///
-/// Other wg-quick fields (`ListenPort`, `DNS`, `MTU`, `PresharedKey`,
+/// Other wg-quick fields (`ListenPort`, `PresharedKey`,
 /// `PersistentKeepalive`, `PreUp`/`PostUp`/`PreDown`/`PostDown`, etc.) are
 /// accepted but ignored. At least one `[Peer]` section is required.
 ///
@@ -168,6 +173,18 @@ fn handle_interface_line(
                 })?;
             interface.addresses.push(net);
         }
+    } else if key.eq_ignore_ascii_case("DNS") {
+        // wg-quick also allows search domains here; only IP addresses are resolvers.
+        interface
+            .dns
+            .extend(value.split(',').filter_map(|entry| entry.trim().parse::<IpAddr>().ok()));
+    } else if key.eq_ignore_ascii_case("MTU") {
+        interface.mtu = Some(
+            value
+                .trim()
+                .parse()
+                .map_err(|_| E::InvalidMtu(value.trim().to_owned()))?,
+        );
     }
     Ok(())
 }
@@ -253,6 +270,8 @@ fn finalize(
         tunnel: CustomVpnTunnelConfig {
             private_key,
             ips: tunnel_ips,
+            dns: interface.dns,
+            mtu: interface.mtu,
         },
         peers,
     })
@@ -366,6 +385,32 @@ PersistentKeepalive = 25
 "
         );
         CustomVpnConfig::from_str(&input).unwrap();
+    }
+
+    #[test]
+    fn dns_and_mtu_are_parsed() {
+        let input = format!(
+            "[Interface]
+PrivateKey = {PRIV}
+Address = fd03:1337::254/64, 10.13.37.254/24
+DNS = 95.215.19.53, 2001:67c:2354:2::53, example.internal
+MTU = 1280
+
+[Peer]
+PublicKey = {PUB}
+AllowedIPs = 0.0.0.0/0
+Endpoint = 1.2.3.4:51820
+"
+        );
+        let config = CustomVpnConfig::from_str(&input).unwrap();
+        assert_eq!(
+            config.tunnel.dns,
+            vec![
+                "95.215.19.53".parse::<IpAddr>().unwrap(),
+                "2001:67c:2354:2::53".parse().unwrap()
+            ]
+        );
+        assert_eq!(config.tunnel.mtu, Some(1280));
     }
 
     #[test]

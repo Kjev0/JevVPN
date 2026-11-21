@@ -57,6 +57,10 @@ impl TryFrom<proto::CustomVpnConfig> for CustomVpnConfigUpdate {
                         .map(|key| bytes_to_privkey(&key))
                         .transpose()?,
                     ips: parse_tunnel_ips(&t.ips)?,
+                    // shortcut: the protobuf config has no DNS/MTU fields, so configs set
+                    // field-by-field (CLI `set`) lose them; imported .conf files keep them.
+                    dns: vec![],
+                    mtu: None,
                 })
             })
             .ok_or(FromProtobufTypeError::InvalidArgument(
@@ -165,6 +169,8 @@ mod test {
             tunnel: CustomVpnTunnelConfig {
                 private_key: PrivateKey::from(KEY_BYTES),
                 ips: vec!["10.0.0.2".parse().unwrap(), "fd00::2".parse().unwrap()],
+                dns: vec![],
+                mtu: None,
             },
             peers: vec1::vec1![CustomVpnPeerConfig {
                 public_key: bytes_to_pubkey(&[1; 32]).unwrap(),
