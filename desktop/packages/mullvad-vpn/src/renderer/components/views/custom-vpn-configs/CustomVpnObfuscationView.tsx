@@ -7,11 +7,11 @@ import {
   DEFAULT_SHADOWSOCKS_CIPHER,
   ICustomVpnConfig,
   isObfuscationEndpoint,
+  SHADOWSOCKS_CIPHERS,
   validateObfuscation,
 } from '../../../../shared/custom-vpn-config';
 import { messages } from '../../../../shared/gettext';
 import { useAppContext } from '../../../context';
-import { useShadowsocksCiphers } from '../../../features/api-access-methods/hooks';
 import { useCustomVpnConfigs } from '../../../features/custom-vpn-configs/hooks';
 import { obfuscationLabel } from '../../../features/custom-vpn-configs/utils';
 import { Button, Flex, Text } from '../../../lib/components';
@@ -56,10 +56,11 @@ export function CustomVpnObfuscationView() {
   );
 }
 
+const CIPHER_ITEMS = SHADOWSOCKS_CIPHERS.map((name) => ({ value: name, label: name }));
+
 function ObfuscationSettings({ config }: { config: ICustomVpnConfig }) {
   const { pop } = useHistory();
   const { setCustomVpnObfuscation } = useAppContext();
-  const { shadowsocksCiphers } = useShadowsocksCiphers();
   const current = config.obfuscation;
 
   const [selected, setSelected] = useState<CustomVpnObfuscationType>(current.type);
@@ -69,14 +70,6 @@ function ObfuscationSettings({ config }: { config: ICustomVpnConfig }) {
     current.type === 'shadowsocks' ? current.cipher : DEFAULT_SHADOWSOCKS_CIPHER,
   );
   const [error, setError] = useState<string>();
-
-  const cipherItems = useMemo(
-    () =>
-      [...new Set([DEFAULT_SHADOWSOCKS_CIPHER, ...shadowsocksCiphers.map(({ name }) => name)])]
-        .sort()
-        .map((name) => ({ value: name, label: name })),
-    [shadowsocksCiphers],
-  );
 
   const needsServer = selected === 'udp2tcp' || selected === 'shadowsocks';
   const candidate = useMemo<CustomVpnObfuscation>(
@@ -196,7 +189,7 @@ function ObfuscationSettings({ config }: { config: ICustomVpnConfig }) {
                     direction="up"
                     defaultValue={cipher}
                     onUpdate={setCipher}
-                    items={cipherItems}
+                    items={CIPHER_ITEMS}
                   />
                 </SettingsRow>
               </>

@@ -92,7 +92,12 @@ describe('applyObfuscation', () => {
 });
 
 describe('validateObfuscation', () => {
-  const ss = { type: 'shadowsocks' as const, endpoint: 'a.example:1', password: 'p', cipher: 'c' };
+  const ss = {
+    type: 'shadowsocks' as const,
+    endpoint: 'a.example:1',
+    password: 'p',
+    cipher: 'aes-256-gcm',
+  };
 
   it('accepts valid settings', () => {
     expect(validateObfuscation({ type: 'off' }, false)).toBeUndefined();
@@ -107,5 +112,6 @@ describe('validateObfuscation', () => {
     expect(validateObfuscation({ ...ss, password: 'a\nPostUp = x' }, false)).toBeDefined();
     expect(validateObfuscation({ ...ss, password: '' }, false)).toBeDefined();
     expect(validateObfuscation({ ...ss, cipher: 'x y' }, false)).toBeDefined();
+    expect(validateObfuscation({ ...ss, cipher: 'rc4-md5' }, false)).toBeDefined();
   });
 });

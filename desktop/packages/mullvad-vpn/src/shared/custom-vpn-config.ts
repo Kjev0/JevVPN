@@ -12,6 +12,8 @@ export type CustomVpnObfuscation =
 export type CustomVpnObfuscationType = CustomVpnObfuscation['type'];
 
 export const DEFAULT_SHADOWSOCKS_CIPHER = 'chacha20-ietf-poly1305';
+// The only ciphers the daemon's Shadowsocks client supports for own servers (AEAD).
+export const SHADOWSOCKS_CIPHERS = ['aes-128-gcm', 'aes-256-gcm', 'chacha20-ietf-poly1305'];
 
 // Metadata sent to the renderer. The raw config (with private keys) never leaves the main process.
 export interface ICustomVpnConfig {
@@ -197,8 +199,8 @@ export function validateObfuscation(
         if (!/^[^\s#;]{1,256}$/.test(obfuscation.password)) {
           return 'The Shadowsocks password must not be empty or contain spaces, # or ;.';
         }
-        if (!/^[a-z0-9-]{1,64}$/i.test(obfuscation.cipher)) {
-          return 'The Shadowsocks cipher is invalid.';
+        if (!SHADOWSOCKS_CIPHERS.includes(obfuscation.cipher)) {
+          return `The Shadowsocks cipher must be one of: ${SHADOWSOCKS_CIPHERS.join(', ')}.`;
         }
       }
       return undefined;

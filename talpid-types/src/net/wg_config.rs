@@ -246,6 +246,10 @@ fn handle_amnezia_line(
             };
         }
         "jc" | "jmin" | "jmax" | "s1" | "s2" | "h1" | "h2" | "h3" | "h4" => (),
+        // AmneziaWG 2.0 header protection and trailers change every packet; unsupported.
+        "headerprotectionkey" | "header_protection_key" | "randomtrailers" | "random_trailers" => {
+            return Err(WgConfigParseError::UnsupportedAmneziaKey(key.to_owned()));
+        }
         _ => return Ok(()),
     }
     let params = interface.amnezia.get_or_insert(AmneziaParams::JUNK_ONLY);
@@ -791,7 +795,13 @@ Endpoint = 1.2.3.4:51820
 
     #[test]
     fn unsupported_amnezia_2_0_values_are_rejected() {
-        for line in ["S3 = 10", "S4 = 1", "H1 = 100-200"] {
+        for line in [
+            "S3 = 10",
+            "S4 = 1",
+            "H1 = 100-200",
+            "HeaderProtectionKey = abc",
+            "RandomTrailers = 1",
+        ] {
             assert_matches!(
                 parse_with(line).unwrap_err(),
                 WgConfigParseError::UnsupportedAmneziaKey(_),
