@@ -32,6 +32,7 @@ impl TunnelObfuscatorRuntime {
         let settings = ObfuscationSettings::Shadowsocks(shadowsocks::Settings {
             shadowsocks_endpoint: peer,
             wireguard_endpoint,
+            credentials: None,
         });
         Self { settings }
     }

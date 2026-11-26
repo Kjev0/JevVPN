@@ -5,7 +5,13 @@ import * as path from 'path';
 import { getDefaultSettings } from '../../../src/main/default-settings';
 import { changeIpcWebContents, IpcMainEventChannel } from '../../../src/main/ipc-event-channel';
 import { loadTranslations } from '../../../src/main/load-translations';
-import { ICustomVpnConfig, parseVpnConfig } from '../../../src/shared/custom-vpn-config';
+import {
+  hasAmneziaParams,
+  ICustomVpnConfig,
+  parseVpnConfig,
+  readObfuscation,
+  validateObfuscation,
+} from '../../../src/shared/custom-vpn-config';
 import {
   DeviceState,
   IAccountData,
@@ -49,6 +55,8 @@ class ApplicationMain {
       protocol: 'wireguard',
       endpoint: '203.0.113.7:51820',
       active: true,
+      obfuscation: { type: 'off' },
+      amneziaAvailable: false,
     },
     {
       id: '2',
@@ -56,6 +64,8 @@ class ApplicationMain {
       protocol: 'openvpn',
       endpoint: 'vpn.example.com:1194',
       active: false,
+      obfuscation: { type: 'off' },
+      amneziaAvailable: false,
     },
   ];
 
@@ -195,6 +205,8 @@ class ApplicationMain {
         id: String(Date.now()),
         ...parseVpnConfig(path.basename(filePath), text),
         active: false,
+        obfuscation: readObfuscation(text),
+        amneziaAvailable: hasAmneziaParams(text),
       };
       this.customVpnConfigs.push(config);
       this.notifyCustomVpnConfigs();
@@ -210,6 +222,14 @@ class ApplicationMain {
         return Promise.reject(new Error('The JevVPN service only supports WireGuard tunnels.'));
       }
       this.customVpnConfigs.forEach((config) => (config.active = config.id === id));
+      this.notifyCustomVpnConfigs();
+      return Promise.resolve();
+    });
+    IpcMainEventChannel.customVpnConfigs.handleSetObfuscation(({ id, obfuscation }) => {
+      const config = this.customVpnConfigs.find((config) => config.id === id);
+      const error = config && validateObfuscation(obfuscation, config.amneziaAvailable);
+      if (!config || error) return Promise.reject(new Error(error ?? 'No such config.'));
+      config.obfuscation = obfuscation;
       this.notifyCustomVpnConfigs();
       return Promise.resolve();
     });

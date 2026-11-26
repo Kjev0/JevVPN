@@ -61,6 +61,7 @@ pub enum ObfuscationType {
     Shadowsocks,
     Quic,
     Lwo,
+    Amnezia,
 }
 
 impl fmt::Display for ObfuscationType {
@@ -70,6 +71,7 @@ impl fmt::Display for ObfuscationType {
             ObfuscationType::Shadowsocks => "Shadowsocks".fmt(f),
             ObfuscationType::Quic => "QUIC".fmt(f),
             ObfuscationType::Lwo => "LWO".fmt(f),
+            ObfuscationType::Amnezia => "AmneziaWG".fmt(f),
         }
     }
 }
@@ -158,9 +160,12 @@ impl From<&ObfuscatorConfig> for ObfuscationEndpoint {
     fn from(config: &ObfuscatorConfig) -> ObfuscationEndpoint {
         let obfuscation_type = match config {
             ObfuscatorConfig::Udp2Tcp { .. } => ObfuscationType::Udp2Tcp,
-            ObfuscatorConfig::Shadowsocks { .. } => ObfuscationType::Shadowsocks,
+            ObfuscatorConfig::Shadowsocks { .. } | ObfuscatorConfig::CustomShadowsocks { .. } => {
+                ObfuscationType::Shadowsocks
+            }
             ObfuscatorConfig::Quic { .. } => ObfuscationType::Quic,
             ObfuscatorConfig::Lwo { .. } => ObfuscationType::Lwo,
+            ObfuscatorConfig::Amnezia { .. } => ObfuscationType::Amnezia,
         };
 
         ObfuscationEndpoint {

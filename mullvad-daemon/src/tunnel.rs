@@ -18,7 +18,8 @@ use mullvad_types::{
 use talpid_core::tunnel_state_machine::TunnelParametersGenerator;
 use talpid_types::net::{
     ALLOWED_LAN_MULTICAST_NETS, ALLOWED_LAN_NETS, ipnetwork_sub::IpNetworkSub,
-    obfuscation::Obfuscators, wireguard,
+    obfuscation::{AmneziaParams, ObfuscatorConfig, Obfuscators},
+    wireguard,
 };
 use talpid_types::{net::IpAvailability, tunnel::ParameterGenerationError};
 
@@ -43,7 +44,8 @@ pub enum Error {
 }
 
 /// Tunnel parameters that connect directly to a custom VPN server, without a Mullvad relay.
-/// Like upstream custom tunnel endpoints, the peer endpoint is what the firewall allows.
+/// Like upstream custom tunnel endpoints, the peer endpoint (or the obfuscator's remote
+/// endpoint, when the config selects one) is what the firewall allows.
 #[cfg(feature = "custom-vpn")]
 fn custom_vpn_tunnel_parameters(
     config: &wireguard::CustomVpnConfig,
@@ -72,8 +74,14 @@ fn custom_vpn_tunnel_parameters(
     // Quantum resistance and DAITA need a Mullvad relay.
     options.quantum_resistant = false;
     options.daita = false;
+    let (obfuscator, overhead) = custom_vpn_obfuscator(&config.tunnel.obfuscation, peer.endpoint);
     // The server's MTU (wg-quick `MTU =`) wins; a too-large MTU silently drops TLS traffic.
-    options.mtu = config.tunnel.mtu.or(options.mtu);
+    // talpid-wireguard only makes room for the obfuscation when no MTU is set, so do it here.
+    options.mtu = config
+        .tunnel
+        .mtu
+        .map(|mtu| mtu.saturating_sub(overhead))
+        .or(options.mtu);
 
     Ok(wireguard::TunnelParameters {
         connection: wireguard::ConnectionConfig {
@@ -97,9 +105,57 @@ fn custom_vpn_tunnel_parameters(
         },
         options,
         generic_options: tunnel_options.generic,
-        obfuscation: None,
+        // The firewall allows exactly the obfuscator's endpoint, or the peer without one.
+        obfuscation: obfuscator.map(Obfuscators::Single),
         custom_vpn: None,
     })
+}
+
+/// The obfuscator for an own config's method, and the bytes it adds to each packet.
+#[cfg(feature = "custom-vpn")]
+fn custom_vpn_obfuscator(
+    obfuscation: &wireguard::CustomVpnObfuscation,
+    peer_endpoint: std::net::SocketAddr,
+) -> (Option<ObfuscatorConfig>, u16) {
+    use wireguard::CustomVpnObfuscation as Method;
+    match obfuscation {
+        Method::Off => (None, 0),
+        // Junk packets and AmneziaWG headers replace bytes in place; S1/S2 only pad handshakes.
+        Method::JunkPackets => (
+            Some(ObfuscatorConfig::Amnezia {
+                endpoint: peer_endpoint,
+                params: AmneziaParams::JUNK_ONLY,
+            }),
+            0,
+        ),
+        Method::Amnezia(params) => (
+            Some(ObfuscatorConfig::Amnezia {
+                endpoint: peer_endpoint,
+                params: *params,
+            }),
+            0,
+        ),
+        // Same as tunnel-obfuscation's udp2tcp `packet_overhead`: max TCP header - UDP + framing.
+        Method::Udp2Tcp { endpoint } => (
+            Some(ObfuscatorConfig::Udp2Tcp {
+                endpoint: *endpoint,
+            }),
+            60 - 8 + 2,
+        ),
+        // AEAD salt (max 32) + IPv6 target address (19) + tag (16), see shadowsocks `packet_overhead`.
+        Method::Shadowsocks {
+            endpoint,
+            password,
+            cipher,
+        } => (
+            Some(ObfuscatorConfig::CustomShadowsocks {
+                endpoint: *endpoint,
+                password: password.clone(),
+                cipher: cipher.clone(),
+            }),
+            32 + 19 + 16,
+        ),
+    }
 }
 
 #[derive(Clone)]
@@ -471,6 +527,7 @@ mod test {
                 ips: vec!["10.8.0.2".parse().unwrap(), "fd00::2".parse().unwrap()],
                 dns: vec![],
                 mtu: None,
+                obfuscation: Default::default(),
             },
             peers: vec1::vec1![wireguard::CustomVpnPeerConfig {
                 public_key: wireguard::PrivateKey::new_from_random().public_key(),
@@ -492,6 +549,97 @@ mod test {
         assert!(params.custom_vpn.is_none());
         assert!(!params.options.quantum_resistant);
         assert!(params.obfuscation.is_none());
+    }
+
+    /// Each own-config obfuscation method maps to one obfuscator whose endpoint the firewall allows.
+    #[cfg(feature = "custom-vpn")]
+    #[test]
+    fn test_custom_vpn_obfuscation_parameters() {
+        use talpid_types::net::{Endpoint, TransportProtocol};
+        use wireguard::CustomVpnObfuscation as Method;
+
+        let peer: std::net::SocketAddr = "203.0.113.7:51820".parse().unwrap();
+        let proxy: std::net::SocketAddr = "203.0.113.7:443".parse().unwrap();
+        let amnezia = AmneziaParams {
+            h1: 11,
+            ..AmneziaParams::JUNK_ONLY
+        };
+        let cases = [
+            (
+                Method::JunkPackets,
+                ObfuscatorConfig::Amnezia {
+                    endpoint: peer,
+                    params: AmneziaParams::JUNK_ONLY,
+                },
+                TransportProtocol::Udp,
+                1420,
+            ),
+            (
+                Method::Amnezia(amnezia),
+                ObfuscatorConfig::Amnezia {
+                    endpoint: peer,
+                    params: amnezia,
+                },
+                TransportProtocol::Udp,
+                1420,
+            ),
+            (
+                Method::Udp2Tcp { endpoint: proxy },
+                ObfuscatorConfig::Udp2Tcp { endpoint: proxy },
+                TransportProtocol::Tcp,
+                1420 - 54,
+            ),
+            (
+                Method::Shadowsocks {
+                    endpoint: proxy,
+                    password: "pw".to_owned(),
+                    cipher: "chacha20-ietf-poly1305".to_owned(),
+                },
+                ObfuscatorConfig::CustomShadowsocks {
+                    endpoint: proxy,
+                    password: "pw".to_owned(),
+                    cipher: "chacha20-ietf-poly1305".to_owned(),
+                },
+                TransportProtocol::Udp,
+                1420 - 67,
+            ),
+        ];
+        for (method, expected, protocol, mtu) in cases {
+            let config = wireguard::CustomVpnConfig {
+                enabled: true,
+                name: None,
+                tunnel: wireguard::CustomVpnTunnelConfig {
+                    private_key: wireguard::PrivateKey::new_from_random(),
+                    ips: vec!["10.8.0.2".parse().unwrap()],
+                    dns: vec![],
+                    mtu: Some(1420),
+                    obfuscation: method.clone(),
+                },
+                peers: vec1::vec1![wireguard::CustomVpnPeerConfig {
+                    public_key: wireguard::PrivateKey::new_from_random().public_key(),
+                    allowed_ip: allowed_ips(&["0.0.0.0/0"]),
+                    endpoint: peer,
+                }],
+            };
+
+            let params = custom_vpn_tunnel_parameters(&config, TunnelOptions::default()).unwrap();
+
+            assert_eq!(
+                params.obfuscation,
+                Some(Obfuscators::Single(expected.clone())),
+                "{method:?}"
+            );
+            assert_eq!(params.connection.peer.endpoint, peer);
+            assert_eq!(
+                params.get_next_hop_endpoints(),
+                vec![Endpoint {
+                    address: expected.endpoint().address,
+                    protocol,
+                }],
+                "{method:?}"
+            );
+            assert_eq!(params.options.mtu, Some(mtu), "{method:?}");
+        }
     }
 
     /// Test legit private IPs in Mullvad tunnels.

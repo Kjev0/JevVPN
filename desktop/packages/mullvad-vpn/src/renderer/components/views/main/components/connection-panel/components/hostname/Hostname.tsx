@@ -3,6 +3,7 @@ import styled from 'styled-components';
 
 import { messages } from '../../../../../../../../shared/gettext';
 import { useActiveWireguardConfig } from '../../../../../../../features/custom-vpn-configs/hooks';
+import { obfuscationLabel } from '../../../../../../../features/custom-vpn-configs/utils';
 import { colors } from '../../../../../../../lib/foundations';
 import { IConnectionReduxState } from '../../../../../../../redux/connection/reducers';
 import { useSelector } from '../../../../../../../redux/store';
@@ -25,7 +26,12 @@ export function Hostname() {
   const tunnelState = useSelector((state) => state.connection.status.state);
   const connection = useSelector((state) => state.connection);
   const activeConfig = useActiveWireguardConfig();
-  const text = activeConfig?.endpoint ?? getHostnameText(connection);
+  const obfuscation = activeConfig?.obfuscation.type ?? 'off';
+  const text = activeConfig
+    ? obfuscation === 'off'
+      ? activeConfig.endpoint
+      : `${activeConfig.endpoint} · ${obfuscationLabel(obfuscation)}`
+    : getHostnameText(connection);
 
   return (
     <StyledAccordion expanded={tunnelState === 'connecting' || tunnelState === 'connected'}>

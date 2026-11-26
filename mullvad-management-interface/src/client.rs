@@ -697,6 +697,18 @@ impl MullvadProxyClient {
         Vec::try_from(settings).map_err(Error::InvalidResponse)
     }
 
+    /// Human-readable obfuscation of each custom VPN config, in the order of
+    /// [`Self::get_custom_vpn_settings`]. Never contains secrets.
+    #[cfg(feature = "custom-vpn")]
+    pub async fn get_custom_vpn_obfuscation(&mut self) -> Result<Vec<String>> {
+        let settings = self.0.get_custom_vpn_settings(()).await?.into_inner();
+        Ok(settings
+            .configs
+            .into_iter()
+            .map(|config| config.tunnel.map(|t| t.obfuscation).unwrap_or_default())
+            .collect())
+    }
+
     #[cfg(feature = "custom-vpn")]
     pub async fn set_custom_vpn_config(
         &mut self,
@@ -832,6 +844,7 @@ mod test {
                     ips: vec!["10.0.0.2".parse().unwrap()],
                     dns: vec![],
                     mtu: None,
+                    obfuscation: Default::default(),
                 },
                 peers: vec1![CustomVpnPeerConfig {
                     public_key: talpid_types::net::wireguard::PublicKey::from([1; 32]),

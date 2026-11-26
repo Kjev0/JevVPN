@@ -11,7 +11,7 @@ import {
   ISplitTunnelingApplication,
 } from '../shared/application-types';
 import { dimensions, Url } from '../shared/constants';
-import type { ICustomVpnConfig } from '../shared/custom-vpn-config';
+import type { CustomVpnObfuscation, ICustomVpnConfig } from '../shared/custom-vpn-config';
 import {
   AccessMethodSetting,
   AccountNumber,
@@ -500,6 +500,8 @@ export default class AppRenderer {
     IpcRendererEventChannel.customVpnConfigs.remove(id);
   public setActiveCustomVpnConfig = (id?: string) =>
     IpcRendererEventChannel.customVpnConfigs.setActive(id);
+  public setCustomVpnObfuscation = (id: string, obfuscation: CustomVpnObfuscation) =>
+    IpcRendererEventChannel.customVpnConfigs.setObfuscation({ id, obfuscation });
   public setEnabledRecents = (enabled: boolean) =>
     IpcRendererEventChannel.settings.setEnableRecents(enabled);
   public clearSettingsMigrations = () => {

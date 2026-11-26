@@ -26,6 +26,9 @@ pub enum Error {
     /// Server config error
     #[error("Server config error")]
     ServerConfig(#[from] ServerConfigError),
+    /// Unknown or non-AEAD cipher
+    #[error("Unsupported Shadowsocks cipher: {0}")]
+    UnsupportedCipher(String),
 }
 
 pub struct Shadowsocks {
@@ -41,6 +44,23 @@ pub struct Settings {
     pub shadowsocks_endpoint: SocketAddr,
     /// Remote WireGuard endpoint
     pub wireguard_endpoint: SocketAddr,
+    /// Password and cipher of a self-hosted server. `None` means Mullvad's relays.
+    pub credentials: Option<Credentials>,
+}
+
+#[derive(Clone)]
+pub struct Credentials {
+    pub password: String,
+    /// Shadowsocks AEAD cipher name, e.g. `chacha20-ietf-poly1305`.
+    pub cipher: String,
+}
+
+impl std::fmt::Debug for Credentials {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Credentials")
+            .field("cipher", &self.cipher)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Settings {
@@ -49,13 +69,32 @@ impl Settings {
         // This math relies on the packet structure of Shadowsocks AEAD UDP packets.
         // https://shadowsocks.org/doc/aead.html
         // Those packets look like this: [salt][address][payload][tag]
-        debug_assert!(SHADOWSOCKS_CIPHER.is_aead());
+        // An invalid cipher fails in `Shadowsocks::new`, so its overhead does not matter.
+        let cipher = self.cipher().unwrap_or(SHADOWSOCKS_CIPHER);
+        debug_assert!(cipher.is_aead());
 
-        let overhead = SHADOWSOCKS_CIPHER.salt_len()
+        let overhead = cipher.salt_len()
             + Address::SocketAddress(self.wireguard_endpoint).serialized_len()
-            + SHADOWSOCKS_CIPHER.tag_len();
+            + cipher.tag_len();
 
         u16::try_from(overhead).expect("packet overhead is less than u16::MAX")
+    }
+
+    /// The cipher to use. Only AEAD ciphers are accepted, which `packet_overhead` assumes.
+    fn cipher(&self) -> Result<CipherKind> {
+        let Some(credentials) = &self.credentials else {
+            return Ok(SHADOWSOCKS_CIPHER);
+        };
+        match credentials.cipher.parse::<CipherKind>() {
+            Ok(cipher) if cipher.is_aead() => Ok(cipher),
+            _ => Err(Error::UnsupportedCipher(credentials.cipher.clone())),
+        }
+    }
+
+    fn password(&self) -> &str {
+        self.credentials
+            .as_ref()
+            .map_or(SHADOWSOCKS_PASSWORD, |credentials| &credentials.password)
     }
 }
 
@@ -64,7 +103,16 @@ impl Shadowsocks {
         let remote_socket =
             create_remote_socket(&bypass, settings.shadowsocks_endpoint.is_ipv4()).await?;
 
-        let socket = wrap_shadowsocks(remote_socket, settings.shadowsocks_endpoint)
+        let socket = settings
+            .cipher()
+            .and_then(|cipher| {
+                wrap_shadowsocks(
+                    remote_socket,
+                    settings.shadowsocks_endpoint,
+                    settings.password(),
+                    cipher,
+                )
+            })
             .map_err(crate::Error::CreateShadowsocksObfuscator)?;
 
         Ok(Shadowsocks {
@@ -83,13 +131,11 @@ impl Shadowsocks {
 fn wrap_shadowsocks(
     remote_socket: BypassSocket<UdpSocket>,
     shadowsocks_endpoint: SocketAddr,
+    password: &str,
+    cipher: CipherKind,
 ) -> Result<ShadowSocket> {
     let ss_context = Context::new_shared(ServerType::Local);
-    let ss_config = ServerConfig::new(
-        shadowsocks_endpoint,
-        SHADOWSOCKS_PASSWORD,
-        SHADOWSOCKS_CIPHER,
-    )?;
+    let ss_config = ServerConfig::new(shadowsocks_endpoint, password, cipher)?;
     let guard = remote_socket.guard;
     let socket = ProxySocket::from_socket(
         UdpSocketType::Client,
@@ -134,5 +180,43 @@ impl ObfuscatedTransport for Shadowsocks {
 
     fn packet_overhead(&self) -> u16 {
         self.packet_overhead
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    fn settings(cipher: Option<&str>) -> Settings {
+        Settings {
+            shadowsocks_endpoint: "1.2.3.4:443".parse().unwrap(),
+            wireguard_endpoint: "127.0.0.1:51820".parse().unwrap(),
+            credentials: cipher.map(|cipher| Credentials {
+                password: "secret".to_owned(),
+                cipher: cipher.to_owned(),
+            }),
+        }
+    }
+
+    #[test]
+    fn custom_credentials() {
+        assert_eq!(settings(None).cipher().unwrap(), SHADOWSOCKS_CIPHER);
+        assert_eq!(settings(None).password(), SHADOWSOCKS_PASSWORD);
+
+        let custom = settings(Some("chacha20-ietf-poly1305"));
+        assert_eq!(custom.cipher().unwrap(), CipherKind::CHACHA20_POLY1305);
+        assert_eq!(custom.password(), "secret");
+        // salt + IPv4 address + tag
+        assert_eq!(custom.packet_overhead(), 32 + 7 + 16);
+        assert_eq!(
+            settings(Some("aes-128-gcm")).packet_overhead(),
+            16 + 7 + 16
+        );
+        assert!(!format!("{custom:?}").contains("secret"));
+
+        // Stream ciphers have a different overhead and are insecure
+        for cipher in ["rc4-md5", "aes-256-cfb", "nonsense", ""] {
+            assert!(settings(Some(cipher)).cipher().is_err(), "{cipher}");
+        }
     }
 }

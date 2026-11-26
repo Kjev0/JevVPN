@@ -19,7 +19,7 @@ use talpid_types::net::{
     wireguard::PublicKey,
 };
 use tunnel_obfuscation::{
-    create_transport, lwo,
+    amnezia, create_transport, lwo,
     multiplexer::{self, Multiplexer, Selected, Transport},
     quic, shadowsocks, udp2tcp,
 };
@@ -107,11 +107,28 @@ fn settings_from_single_config(
         ObfuscatorConfig::Shadowsocks { endpoint } => {
             tunnel_obfuscation::Settings::Shadowsocks(shadowsocks::Settings {
                 shadowsocks_endpoint: *endpoint,
-                wireguard_endpoint: if endpoint.is_ipv4() {
-                    SocketAddr::from((Ipv4Addr::LOCALHOST, 51820))
-                } else {
-                    SocketAddr::from((Ipv6Addr::LOCALHOST, 51820))
-                },
+                wireguard_endpoint: shadowsocks_wireguard_endpoint(endpoint),
+                credentials: None,
+            })
+        }
+        ObfuscatorConfig::CustomShadowsocks {
+            endpoint,
+            password,
+            cipher,
+        } => tunnel_obfuscation::Settings::Shadowsocks(shadowsocks::Settings {
+            shadowsocks_endpoint: *endpoint,
+            wireguard_endpoint: shadowsocks_wireguard_endpoint(endpoint),
+            credentials: Some(shadowsocks::Credentials {
+                password: password.clone(),
+                cipher: cipher.clone(),
+            }),
+        }),
+        ObfuscatorConfig::Amnezia { endpoint, params } => {
+            tunnel_obfuscation::Settings::Amnezia(amnezia::Settings {
+                server_addr: *endpoint,
+                params: *params,
+                client_public_key,
+                server_public_key,
             })
         }
         ObfuscatorConfig::Quic {
@@ -140,6 +157,16 @@ fn settings_from_single_config(
     }
 }
 
+/// Where the Shadowsocks server forwards to: WireGuard on the server's own loopback interface, at
+/// the standard port. Mullvad relays and self-hosted servers alike must listen there.
+fn shadowsocks_wireguard_endpoint(shadowsocks_endpoint: &SocketAddr) -> SocketAddr {
+    if shadowsocks_endpoint.is_ipv4() {
+        SocketAddr::from((Ipv4Addr::LOCALHOST, 51820))
+    } else {
+        SocketAddr::from((Ipv6Addr::LOCALHOST, 51820))
+    }
+}
+
 /// The inverse of [`settings_from_single_config`].
 ///
 /// The settings carry derived state that the config does not -- the local WireGuard endpoint and
@@ -149,8 +176,15 @@ pub fn config_from_single_settings(settings: &tunnel_obfuscation::Settings) -> O
         tunnel_obfuscation::Settings::Udp2Tcp(settings) => ObfuscatorConfig::Udp2Tcp {
             endpoint: settings.peer,
         },
-        tunnel_obfuscation::Settings::Shadowsocks(settings) => ObfuscatorConfig::Shadowsocks {
-            endpoint: settings.shadowsocks_endpoint,
+        tunnel_obfuscation::Settings::Shadowsocks(settings) => match &settings.credentials {
+            None => ObfuscatorConfig::Shadowsocks {
+                endpoint: settings.shadowsocks_endpoint,
+            },
+            Some(credentials) => ObfuscatorConfig::CustomShadowsocks {
+                endpoint: settings.shadowsocks_endpoint,
+                password: credentials.password.clone(),
+                cipher: credentials.cipher.clone(),
+            },
         },
         tunnel_obfuscation::Settings::Quic(settings) => ObfuscatorConfig::Quic {
             hostname: settings.hostname().to_owned(),
@@ -160,6 +194,10 @@ pub fn config_from_single_settings(settings: &tunnel_obfuscation::Settings) -> O
         tunnel_obfuscation::Settings::Lwo(settings) => ObfuscatorConfig::Lwo {
             endpoint: settings.server_addr,
             version: settings.version,
+        },
+        tunnel_obfuscation::Settings::Amnezia(settings) => ObfuscatorConfig::Amnezia {
+            endpoint: settings.server_addr,
+            params: settings.params,
         },
     }
 }

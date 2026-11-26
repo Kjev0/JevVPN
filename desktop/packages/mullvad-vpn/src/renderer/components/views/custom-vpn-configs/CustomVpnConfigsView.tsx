@@ -4,12 +4,15 @@ import styled from 'styled-components';
 
 import { ICustomVpnConfig } from '../../../../shared/custom-vpn-config';
 import { messages } from '../../../../shared/gettext';
+import { RoutePath } from '../../../../shared/routes';
 import { useAppContext } from '../../../context';
+import { obfuscationLabel } from '../../../features/custom-vpn-configs/utils';
 import { Button, Container, Flex } from '../../../lib/components';
 import { FlexColumn } from '../../../lib/components/flex-column';
 import { Switch } from '../../../lib/components/switch';
 import { View } from '../../../lib/components/view';
 import { useHistory } from '../../../lib/history';
+import { generateRoutePath } from '../../../lib/routeHelpers';
 import { useEffectEvent } from '../../../lib/utility-hooks';
 import { AppNavigationHeader } from '../..';
 import * as Cell from '../../cell';
@@ -41,7 +44,7 @@ const StyledSubLabelText = styled.span({
 
 const protocolLabel = { wireguard: 'WireGuard', openvpn: 'OpenVPN' } as const;
 
-function errorMessage(error: unknown): string {
+export function errorMessage(error: unknown): string {
   // Electron prefixes errors thrown in ipcMain handlers; show only the original message.
   return (error as Error).message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
 }
@@ -124,6 +127,12 @@ export function CustomVpnConfigsView() {
                     'Imported files can contain private keys. They are stored encrypted on this device.',
                   )}
                 </AppNavigationHeader.Info.Dialog.Text>
+                <AppNavigationHeader.Info.Dialog.Text>
+                  {messages.pgettext(
+                    'custom-vpn-configs-view',
+                    'If your network blocks VPNs, choose Obfuscation in the menu of a WireGuard config.',
+                  )}
+                </AppNavigationHeader.Info.Dialog.Text>
               </AppNavigationHeader.Info.Dialog>
             </AppNavigationHeader.Info>
           </AppNavigationHeader>
@@ -193,6 +202,7 @@ interface CustomVpnConfigRowProps {
 
 function CustomVpnConfigRow({ config, run }: CustomVpnConfigRowProps) {
   const { removeCustomVpnConfig, setActiveCustomVpnConfig } = useAppContext();
+  const { push } = useHistory();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const toggle = useCallback(
@@ -207,13 +217,23 @@ function CustomVpnConfigRow({ config, run }: CustomVpnConfigRowProps) {
 
   const menuItems = useMemo<Array<ContextMenuItem>>(
     () => [
+      ...(config.protocol === 'wireguard'
+        ? [
+            {
+              type: 'item' as const,
+              label: messages.pgettext('custom-vpn-configs-view', 'Obfuscation'),
+              onClick: () =>
+                push(generateRoutePath(RoutePath.customVpnObfuscation, { id: config.id })),
+            },
+          ]
+        : []),
       {
         type: 'item' as const,
         label: messages.gettext('Delete'),
         onClick: () => setDeleteDialogOpen(true),
       },
     ],
-    [],
+    [config.id, config.protocol, push],
   );
 
   return (
@@ -223,6 +243,7 @@ function CustomVpnConfigRow({ config, run }: CustomVpnConfigRowProps) {
         <Cell.SubLabel>
           <StyledSubLabelText>
             {`${protocolLabel[config.protocol]} · ${config.endpoint}`}
+            {config.obfuscation.type !== 'off' && ` · ${obfuscationLabel(config.obfuscation.type)}`}
             {config.active && ` · ${messages.pgettext('api-access-methods-view', 'In use')}`}
           </StyledSubLabelText>
         </Cell.SubLabel>

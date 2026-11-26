@@ -1518,28 +1518,33 @@ impl ManagementService for ManagementServiceImpl {
 async fn resolve_endpoint_hosts(config: &str) -> Result<String, String> {
     let mut out = String::with_capacity(config.len());
     for line in config.lines() {
+        // The udp2tcp/Shadowsocks server (`JevObfuscationEndpoint`) is resolved like the peer.
         let endpoint = line
             .split_once('=')
-            .filter(|(key, _)| key.trim().eq_ignore_ascii_case("Endpoint"))
-            .map(|(_, value)| value.split('#').next().unwrap_or("").trim());
+            .map(|(key, value)| (key.trim(), value))
+            .filter(|(key, _)| {
+                key.eq_ignore_ascii_case("Endpoint")
+                    || key.eq_ignore_ascii_case("JevObfuscationEndpoint")
+            })
+            .map(|(key, value)| (key, value.split('#').next().unwrap_or("").trim()));
         let resolved = match endpoint {
-            Some(value) if value.parse::<std::net::SocketAddr>().is_err() => {
+            Some((key, value)) if value.parse::<std::net::SocketAddr>().is_err() => {
                 let (host, port) = value
                     .rsplit_once(':')
-                    .ok_or_else(|| format!("Invalid Endpoint '{value}' (expected <host>:<port>)"))?;
+                    .ok_or_else(|| format!("Invalid {key} '{value}' (expected <host>:<port>)"))?;
                 let port: u16 = port
                     .parse()
-                    .map_err(|_| format!("Invalid port in Endpoint '{value}'"))?;
+                    .map_err(|_| format!("Invalid port in {key} '{value}'"))?;
                 let addrs: Vec<_> = tokio::net::lookup_host((host, port))
                     .await
-                    .map_err(|err| format!("Could not resolve Endpoint host '{host}': {err}"))?
+                    .map_err(|err| format!("Could not resolve {key} host '{host}': {err}"))?
                     .collect();
                 let addr = addrs
                     .iter()
                     .find(|addr| addr.is_ipv4())
                     .or(addrs.first())
-                    .ok_or_else(|| format!("Endpoint host '{host}' has no addresses"))?;
-                Some(format!("Endpoint = {addr}"))
+                    .ok_or_else(|| format!("{key} host '{host}' has no addresses"))?;
+                Some(format!("{key} = {addr}"))
             }
             _ => None,
         };
@@ -1953,6 +1958,21 @@ Endpoint = 1.2.3.4:51820
     async fn keeps_ip_endpoints_and_other_lines() {
         let config = "[Interface]\nAddress = 10.0.0.2/32\n[Peer]\nEndpoint = 1.2.3.4:51820\n";
         assert_eq!(resolve_endpoint_hosts(config).await.unwrap(), config);
+    }
+
+    #[tokio::test]
+    async fn resolves_obfuscation_endpoint_hostnames() {
+        let config = "[Interface]\nJevObfuscationEndpoint = localhost:443\n";
+        let resolved = resolve_endpoint_hosts(config).await.unwrap();
+        assert!(
+            resolved.contains("JevObfuscationEndpoint = 127.0.0.1:443"),
+            "{resolved}"
+        );
+        assert!(
+            resolve_endpoint_hosts("JevObfuscationEndpoint = example")
+                .await
+                .is_err()
+        );
     }
 
     #[tokio::test]

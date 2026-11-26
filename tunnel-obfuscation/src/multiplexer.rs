@@ -542,6 +542,7 @@ impl Display for Transport {
             }
             Obfuscated(Quic(c)) => write!(f, "Quic over {}", ip_version(c.quic_endpoint())),
             Obfuscated(Lwo(c)) => write!(f, "Lwo over {}", ip_version(c.server_addr)),
+            Obfuscated(Amnezia(c)) => write!(f, "AmneziaWG over {}", ip_version(c.server_addr)),
         }
     }
 }

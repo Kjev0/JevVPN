@@ -3,7 +3,7 @@ import { GetTextTranslations } from 'gettext-parser';
 import { MapData } from '../renderer/lib/3dmap';
 import { AppUpgradeError, AppUpgradeEvent } from './app-upgrade';
 import { ILinuxSplitTunnelingApplication, ISplitTunnelingApplication } from './application-types';
-import { ICustomVpnConfig } from './custom-vpn-config';
+import { CustomVpnObfuscation, ICustomVpnConfig } from './custom-vpn-config';
 import {
   AccessMethodExistsError,
   AccessMethodSetting,
@@ -166,6 +166,7 @@ export const ipcSchema = {
     importFile: invoke<string, ICustomVpnConfig>(),
     remove: invoke<string, void>(),
     setActive: invoke<string | undefined, void>(),
+    setObfuscation: invoke<{ id: string; obfuscation: CustomVpnObfuscation }, void>(),
   },
   customLists: {
     createCustomList: invoke<NewCustomList, void | CustomListError>(),

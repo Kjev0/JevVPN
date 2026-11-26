@@ -22,6 +22,7 @@ export enum RoutePath {
   apiAccessMethods = '/settings/api-access-methods',
   settingsImport = '/settings/settings-import',
   customVpnConfigs = '/settings/custom-vpn-configs',
+  customVpnObfuscation = '/settings/custom-vpn-configs/obfuscation/:id',
   settingsTextImport = '/settings/settings-import/text-import',
   editApiAccessMethods = '/settings/api-access-methods/edit/:id?',
   support = '/settings/support',

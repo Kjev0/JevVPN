@@ -57,6 +57,20 @@ Code for the config import, relative to `desktop/packages/mullvad-vpn`:
 | IPC | `customVpnConfigs` in `src/shared/ipc-schema.ts` |
 | UI | `src/renderer/components/views/custom-vpn-configs/` |
 
+## Censorship bypass
+
+If your network blocks VPNs (for example in Russia), JevVPN can disguise the WireGuard traffic:
+
+- **Mullvad servers:** Settings > VPN settings > Anti-censorship (UDP-over-TCP, Shadowsocks, QUIC,
+  LWO). Mullvad's relays run the server side.
+- **Own WireGuard configs:** Settings > VPN configs, menu on a config > Obfuscation. *Junk packets*
+  work with any WireGuard server. *AmneziaWG*, *UDP-over-TCP* and *Shadowsocks* need matching
+  software on your server.
+
+No method is guaranteed to work, and censors keep changing their filters. Danish ISPs such as YouSee
+block sites through DNS only; the tunnel's DNS already gets around that. Server setup and details
+are in [docs/CENSORSHIP.md](docs/CENSORSHIP.md).
+
 ## Setup
 
 ### Install on Windows

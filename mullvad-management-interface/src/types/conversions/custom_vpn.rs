@@ -57,10 +57,12 @@ impl TryFrom<proto::CustomVpnConfig> for CustomVpnConfigUpdate {
                         .map(|key| bytes_to_privkey(&key))
                         .transpose()?,
                     ips: parse_tunnel_ips(&t.ips)?,
-                    // shortcut: the protobuf config has no DNS/MTU fields, so configs set
-                    // field-by-field (CLI `set`) lose them; imported .conf files keep them.
+                    // shortcut: the protobuf config has no DNS/MTU/obfuscation fields, so
+                    // configs set field-by-field (CLI `set`) lose them; imported .conf files
+                    // keep them. `obfuscation: None` keeps the same server's stored method.
                     dns: vec![],
                     mtu: None,
+                    obfuscation: None,
                 })
             })
             .ok_or(FromProtobufTypeError::InvalidArgument(
@@ -107,6 +109,7 @@ fn config_to_proto(config: &CustomVpnConfig) -> proto::CustomVpnConfig {
         tunnel: Some(proto::custom_vpn_config::TunnelConfig {
             private_key: response_private_key(config),
             ips: config.tunnel.ips.iter().map(ToString::to_string).collect(),
+            obfuscation: config.tunnel.obfuscation.to_string(),
         }),
         peers: config
             .peers
@@ -139,6 +142,8 @@ impl From<CustomVpnConfigUpdate> for proto::CustomVpnConfig {
             tunnel: Some(proto::custom_vpn_config::TunnelConfig {
                 private_key: update.tunnel.private_key.map(|key| key.to_bytes().to_vec()),
                 ips: update.tunnel.ips.iter().map(ToString::to_string).collect(),
+                // Read-only summary; the daemon ignores it on write.
+                obfuscation: String::new(),
             }),
             peers: update
                 .peers
@@ -171,6 +176,7 @@ mod test {
                 ips: vec!["10.0.0.2".parse().unwrap(), "fd00::2".parse().unwrap()],
                 dns: vec![],
                 mtu: None,
+                obfuscation: Default::default(),
             },
             peers: vec1::vec1![CustomVpnPeerConfig {
                 public_key: bytes_to_pubkey(&[1; 32]).unwrap(),
@@ -185,6 +191,7 @@ mod test {
             tunnel: Some(proto::custom_vpn_config::TunnelConfig {
                 private_key,
                 ips: vec!["10.0.0.2".to_string()],
+                obfuscation: String::new(),
             }),
             peers: vec![proto::custom_vpn_config::PeerConfig {
                 public_key: vec![1; 32],

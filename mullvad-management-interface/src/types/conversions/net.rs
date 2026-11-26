@@ -80,6 +80,9 @@ impl From<talpid_types::net::ObfuscationEndpoint> for proto::ObfuscationEndpoint
                 talpid_types::net::ObfuscationType::Lwo => {
                     i32::from(proto::obfuscation_endpoint::ObfuscationType::Lwo)
                 }
+                talpid_types::net::ObfuscationType::Amnezia => {
+                    i32::from(proto::obfuscation_endpoint::ObfuscationType::Amnezia)
+                }
             },
         }
     }
@@ -109,6 +112,9 @@ impl TryFrom<proto::ObfuscationEndpoint> for talpid_types::net::ObfuscationEndpo
                 }
                 Ok(proto::obfuscation_endpoint::ObfuscationType::Lwo) => {
                     talpid_net::ObfuscationType::Lwo
+                }
+                Ok(proto::obfuscation_endpoint::ObfuscationType::Amnezia) => {
+                    talpid_net::ObfuscationType::Amnezia
                 }
                 Err(_) => {
                     return Err(FromProtobufTypeError::invalid_argument(

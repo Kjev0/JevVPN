@@ -3,6 +3,7 @@ use std::{net::SocketAddr, sync::Arc};
 use talpid_net::bypass::{NoopBypass, SocketBypass};
 use tokio::io;
 
+pub mod amnezia;
 pub mod direct;
 #[cfg(feature = "gotatun")]
 pub mod gotatun_transport;
@@ -67,6 +68,7 @@ pub enum Settings {
     Shadowsocks(shadowsocks::Settings),
     Quic(quic::Settings),
     Lwo(lwo::Settings),
+    Amnezia(amnezia::Settings),
 }
 
 impl Settings {
@@ -77,6 +79,7 @@ impl Settings {
             Settings::Shadowsocks(s) => s.packet_overhead(),
             Settings::Quic(s) => s.packet_overhead(),
             Settings::Lwo(s) => s.packet_overhead(),
+            Settings::Amnezia(s) => s.packet_overhead(),
         }
     }
 }
@@ -93,6 +96,9 @@ pub async fn create_transport(
             .map(arc_transport),
         Settings::Quic(s) => quic::QuicTransport::new(bypass, s).await.map(arc_transport),
         Settings::Lwo(s) => lwo::Lwo::new(bypass, s).await.map(arc_transport),
+        Settings::Amnezia(s) => amnezia::Amnezia::new(bypass, s)
+            .await
+            .map(arc_transport),
 
         Settings::Udp2Tcp(s) => udp2tcp::Udp2Tcp::new(bypass, s).map(arc_transport),
     }

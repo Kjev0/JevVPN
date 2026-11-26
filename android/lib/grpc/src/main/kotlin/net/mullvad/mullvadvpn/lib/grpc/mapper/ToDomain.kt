@@ -282,6 +282,9 @@ internal fun ObfuscationEndpoint.ObfuscationType.toDomain(): ModelObfuscationTyp
         ObfuscationEndpoint.ObfuscationType.SHADOWSOCKS -> ModelObfuscationType.Shadowsocks
         ObfuscationEndpoint.ObfuscationType.QUIC -> ModelObfuscationType.Quic
         ObfuscationEndpoint.ObfuscationType.LWO -> ModelObfuscationType.Lwo
+        // Only used by JevVPN's own (custom) WireGuard configs, which Android does not support.
+        ObfuscationEndpoint.ObfuscationType.AMNEZIA ->
+            error("AmneziaWG obfuscation is not supported on Android")
     }
 
 internal fun TransportProtocol.toDomain(): ModelTransportProtocol =

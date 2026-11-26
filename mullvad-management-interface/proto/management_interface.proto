@@ -415,6 +415,7 @@ message ObfuscationEndpoint {
     SHADOWSOCKS = 1;
     QUIC = 2;
     LWO = 3;
+    AMNEZIA = 4;
   }
 
   Endpoint endpoint = 1;
@@ -706,6 +707,9 @@ message CustomVpnConfig {
     // One or more tunnel interface IPs (no CIDR). Must be non-empty.
     // Typically one IPv4 and/or one IPv6 address.
     repeated string ips = 2;
+    // Read-only, human-readable obfuscation summary (never contains secrets).
+    // Ignored on write: the stored obfuscation of the same server is kept.
+    string obfuscation = 3;
   }
   message PeerConfig {
     bytes public_key = 1;

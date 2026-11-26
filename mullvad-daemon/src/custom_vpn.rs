@@ -215,6 +215,7 @@ mod test {
                 ips: vec!["10.0.0.2".parse().unwrap()],
                 dns: vec![],
                 mtu: None,
+                obfuscation: Default::default(),
             },
             peers: vec1![CustomVpnPeerConfig {
                 public_key: PublicKey::from_base64("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBE=")
@@ -325,6 +326,7 @@ mod test {
                 ips: config.tunnel.ips.clone(),
                 dns: vec![],
                 mtu: None,
+                obfuscation: Default::default(),
             },
             peers: config.peers.clone(),
         };

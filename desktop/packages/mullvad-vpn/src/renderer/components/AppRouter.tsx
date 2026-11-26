@@ -19,6 +19,7 @@ import {
   AppUpgradeView,
   ChangelogView,
   CustomVpnConfigsView,
+  CustomVpnObfuscationView,
   DaitaSettingsView,
   DebugView,
   DeviceRevokedView,
@@ -90,6 +91,7 @@ export default function AppRouter() {
           <Route exact path={RoutePath.apiAccessMethods} component={ApiAccessView} />
           <Route exact path={RoutePath.settingsImport} component={SettingsImportView} />
           <Route exact path={RoutePath.customVpnConfigs} component={CustomVpnConfigsView} />
+          <Route exact path={RoutePath.customVpnObfuscation} component={CustomVpnObfuscationView} />
           <Route exact path={RoutePath.settingsTextImport} component={SettingsTextImportView} />
           <Route exact path={RoutePath.editApiAccessMethods} component={EditApiAccessView} />
           <Route exact path={RoutePath.support} component={SupportView} />

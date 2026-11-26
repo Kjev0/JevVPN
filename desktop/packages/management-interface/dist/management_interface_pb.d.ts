@@ -975,6 +975,7 @@ export namespace ObfuscationEndpoint {
     SHADOWSOCKS = 1,
     QUIC = 2,
     LWO = 3,
+    AMNEZIA = 4,
     }
 
 }

@@ -1412,6 +1412,18 @@ msgid "Relay"
 msgstr ""
 
 msgctxt "custom-vpn-configs-view"
+msgid "AmneziaWG can only be used with a config file that contains AmneziaWG parameters (Jc, S1, H1 and so on)."
+msgstr ""
+
+msgctxt "custom-vpn-configs-view"
+msgid "Hides the WireGuard traffic of this config from networks that block VPNs. Junk packets work with any WireGuard server. AmneziaWG, UDP-over-TCP and Shadowsocks need matching software on the server."
+msgstr ""
+
+msgctxt "custom-vpn-configs-view"
+msgid "If your network blocks VPNs, choose Obfuscation in the menu of a WireGuard config."
+msgstr ""
+
+msgctxt "custom-vpn-configs-view"
 msgid "Import WireGuard (.conf) or OpenVPN (.ovpn) configuration files from any provider. Turn one on to tunnel through it instead of the JevVPN servers."
 msgstr ""
 
@@ -1419,12 +1431,33 @@ msgctxt "custom-vpn-configs-view"
 msgid "Imported files can contain private keys. They are stored encrypted on this device."
 msgstr ""
 
+#. Obfuscation method that sends random packets before the WireGuard handshake.
+msgctxt "custom-vpn-configs-view"
+msgid "Junk packets"
+msgstr ""
+
 msgctxt "custom-vpn-configs-view"
 msgid "No VPN configs imported yet. Use Import to add a .conf or .ovpn file."
 msgstr ""
 
 msgctxt "custom-vpn-configs-view"
+msgid "Obfuscation"
+msgstr ""
+
+msgctxt "custom-vpn-configs-view"
 msgid "OpenVPN configurations can be imported and stored, but connecting with them is not supported yet."
+msgstr ""
+
+msgctxt "custom-vpn-configs-view"
+msgid "Please enter the server as host:port."
+msgstr ""
+
+msgctxt "custom-vpn-configs-view"
+msgid "The server must run a Shadowsocks server (for example ssserver) with UDP relay, forwarding to the WireGuard port."
+msgstr ""
+
+msgctxt "custom-vpn-configs-view"
+msgid "The server must run tcp2udp from mullvad/udp-over-tcp, forwarding to the WireGuard port."
 msgstr ""
 
 #. Title label in navigation bar

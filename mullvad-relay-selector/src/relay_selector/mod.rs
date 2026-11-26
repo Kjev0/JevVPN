@@ -92,6 +92,8 @@ fn remove_supported_obfuscations(mut query: RelayQuery, relay: &GetRelay) -> Rel
             ObfuscatorConfig::Shadowsocks { .. } => obfuscation.shadowsocks = None,
             ObfuscatorConfig::Quic { .. } => obfuscation.quic = false,
             ObfuscatorConfig::Lwo { .. } => obfuscation.lwo = None,
+            // Only used by custom VPN configs, never offered by relays
+            ObfuscatorConfig::Amnezia { .. } | ObfuscatorConfig::CustomShadowsocks { .. } => {}
         }
     }
     query

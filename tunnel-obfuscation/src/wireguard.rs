@@ -100,7 +100,7 @@ impl HandshakeFilter {
 }
 
 /// The key that `mac1` of a message addressed to `public_key` is computed with.
-fn mac1_key(public_key: &PublicKey) -> [u8; 32] {
+pub(crate) fn mac1_key(public_key: &PublicKey) -> [u8; 32] {
     Blake2s256::new()
         .chain_update(b"mac1----")
         .chain_update(public_key.as_bytes())
@@ -110,6 +110,27 @@ fn mac1_key(public_key: &PublicKey) -> [u8; 32] {
 
 fn mac1(key: &[u8; 32]) -> Mac1 {
     <Mac1 as Mac>::new_from_slice(key).expect("the mac1 key is 32 bytes")
+}
+
+/// `mac1` of a handshake initiation or response sits 32 bytes from its end, followed by `mac2`.
+fn mac1_range(message: &[u8]) -> Range<usize> {
+    message.len() - 32..message.len() - 16
+}
+
+/// Return whether the `mac1` field of the handshake `message` is valid for `key`.
+pub(crate) fn verify_message_mac1(message: &[u8], key: &[u8; 32]) -> bool {
+    let range = mac1_range(message);
+    mac1(key)
+        .chain_update(&message[..range.start])
+        .verify_slice(&message[range])
+        .is_ok()
+}
+
+/// Recompute the `mac1` field of the handshake `message` with `key`, after its header changed.
+pub(crate) fn set_message_mac1(message: &mut [u8], key: &[u8; 32]) {
+    let range = mac1_range(message);
+    let mac = mac1(key).chain_update(&message[..range.start]).finalize();
+    message[range].copy_from_slice(&mac.into_bytes());
 }
 
 fn index(packet: &[u8], field: Range<usize>) -> u32 {

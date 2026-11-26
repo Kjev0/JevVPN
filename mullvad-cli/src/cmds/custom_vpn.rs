@@ -80,11 +80,13 @@ impl CustomVpn {
     async fn get() -> Result<()> {
         let mut rpc = MullvadProxyClient::new().await?;
         let configs = rpc.get_custom_vpn_settings().await?;
+        let obfuscation = rpc.get_custom_vpn_obfuscation().await?;
         // Show the active config, or the first one if none is enabled
-        let config = configs
+        let index = configs
             .iter()
-            .find(|config| config.enabled)
-            .or_else(|| configs.first());
+            .position(|config| config.enabled)
+            .or((!configs.is_empty()).then_some(0));
+        let config = index.map(|index| &configs[index]);
         let enabled = BooleanOption::from(config.is_some_and(|c| c.enabled));
         println!("Custom VPN: {enabled}");
         match config {
@@ -101,6 +103,13 @@ impl CustomVpn {
                     .collect::<Vec<_>>()
                     .join(", ");
                 println!("Tunnel IPs:         {ips}");
+                // Empty when the daemon predates obfuscation support.
+                if let Some(obfuscation) = index
+                    .and_then(|index| obfuscation.get(index))
+                    .filter(|o| !o.is_empty())
+                {
+                    println!("Obfuscation:        {obfuscation}");
+                }
                 for peer in &config.peers {
                     println!("Peer public key:    {}", peer.public_key.to_base64());
                     for allowed_ip in &peer.allowed_ip {
@@ -132,6 +141,7 @@ impl CustomVpn {
                 ips: tunnel_ip,
                 dns: vec![],
                 mtu: None,
+                obfuscation: None,
             },
             peers: vec1::vec1![CustomVpnPeerConfig {
                 public_key: peer_pubkey,

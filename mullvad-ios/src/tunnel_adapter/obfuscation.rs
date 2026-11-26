@@ -117,6 +117,7 @@ fn obfuscation_type(settings: &tunnel_obfuscation::Settings) -> ObfuscationType 
         tunnel_obfuscation::Settings::Shadowsocks(_) => ObfuscationType::Shadowsocks,
         tunnel_obfuscation::Settings::Quic(_) => ObfuscationType::Quic,
         tunnel_obfuscation::Settings::Lwo(_) => ObfuscationType::Lwo,
+        tunnel_obfuscation::Settings::Amnezia(_) => ObfuscationType::Amnezia,
     }
 }
 
@@ -139,6 +140,7 @@ fn obfuscation_settings(
             tunnel_obfuscation::Settings::Shadowsocks(tunnel_obfuscation::shadowsocks::Settings {
                 shadowsocks_endpoint: ingress_endpoint,
                 wireguard_endpoint: wg_ep,
+                credentials: None,
             })
         }
         ObfuscationParameters::Quic { hostname, token } => {
